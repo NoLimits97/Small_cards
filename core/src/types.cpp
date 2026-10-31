@@ -71,15 +71,44 @@ int64_t checked_negate(int64_t value) {
     return -value;
 }
 
-int64_t unsigned_to_signed(u64 value) {
-    if (value > static_cast<u64>(INT64_MAX)) {
-        throw CalcError("integer overflow");
-    }
-    return static_cast<int64_t>(value);
-}
-
 Rational make_rational(int64_t numerator, int64_t denominator) {
     return Rational(numerator, denominator);
+}
+
+int compare_unsigned_fractions(u64 left_numerator,
+                               u64 left_denominator,
+                               u64 right_numerator,
+                               u64 right_denominator) {
+    bool reversed = false;
+
+    for (;;) {
+        const u64 left_quotient = left_numerator / left_denominator;
+        const u64 right_quotient = right_numerator / right_denominator;
+
+        if (left_quotient != right_quotient) {
+            const int result = left_quotient < right_quotient ? -1 : 1;
+            return reversed ? -result : result;
+        }
+
+        const u64 left_remainder = left_numerator % left_denominator;
+        const u64 right_remainder = right_numerator % right_denominator;
+
+        if (left_remainder == 0 || right_remainder == 0) {
+            int result = 0;
+            if (left_remainder == 0 && right_remainder != 0) {
+                result = -1;
+            } else if (left_remainder != 0 && right_remainder == 0) {
+                result = 1;
+            }
+            return reversed ? -result : result;
+        }
+
+        left_numerator = left_denominator;
+        left_denominator = left_remainder;
+        right_numerator = right_denominator;
+        right_denominator = right_remainder;
+        reversed = !reversed;
+    }
 }
 
 }
@@ -172,9 +201,13 @@ Rational& Rational::operator/=(const Rational& other) {
 }
 
 Rational operator+(Rational left, const Rational& right) {
-    const u64 divisor = std::gcd(magnitude(left.denominator_), magnitude(right.denominator_));
-    const int64_t left_factor = left.denominator_ / static_cast<int64_t>(divisor);
-    const int64_t right_factor = right.denominator_ / static_cast<int64_t>(divisor);
+    const u64 divisor = std::gcd(
+        magnitude(left.denominator_),
+        magnitude(right.denominator_));
+    const int64_t left_factor =
+        left.denominator_ / static_cast<int64_t>(divisor);
+    const int64_t right_factor =
+        right.denominator_ / static_cast<int64_t>(divisor);
     const int64_t first = checked_mul(left.numerator_, right_factor);
     const int64_t second = checked_mul(right.numerator_, left_factor);
     const int64_t numerator = checked_add(first, second);
@@ -187,8 +220,12 @@ Rational operator-(Rational left, const Rational& right) {
 }
 
 Rational operator*(Rational left, const Rational& right) {
-    const u64 g1 = std::gcd(magnitude(left.numerator_), magnitude(right.denominator_));
-    const u64 g2 = std::gcd(magnitude(right.numerator_), magnitude(left.denominator_));
+    const u64 g1 = std::gcd(
+        magnitude(left.numerator_),
+        magnitude(right.denominator_));
+    const u64 g2 = std::gcd(
+        magnitude(right.numerator_),
+        magnitude(left.denominator_));
     const int64_t a = left.numerator_ / static_cast<int64_t>(g1);
     const int64_t b = right.numerator_ / static_cast<int64_t>(g2);
     const int64_t c = left.denominator_ / static_cast<int64_t>(g2);
@@ -208,20 +245,38 @@ bool operator==(const Rational& left, const Rational& right) {
            left.denominator_ == right.denominator_;
 }
 
-bool operator!=(const Rational& left, const Rational& right) { return !(left == right); }
-
-bool operator<(const Rational& left, const Rational& right) {
-    const u64 g = std::gcd(magnitude(left.denominator_), magnitude(right.denominator_));
-    const int64_t lf = left.denominator_ / static_cast<int64_t>(g);
-    const int64_t rf = right.denominator_ / static_cast<int64_t>(g);
-    const int64_t a = checked_mul(left.numerator_, rf);
-    const int64_t b = checked_mul(right.numerator_, lf);
-    return a < b;
+bool operator!=(const Rational& left, const Rational& right) {
+    return !(left == right);
 }
 
-bool operator<=(const Rational& left, const Rational& right) { return !(right < left); }
-bool operator>(const Rational& left, const Rational& right) { return right < left; }
-bool operator>=(const Rational& left, const Rational& right) { return !(left < right); }
+bool operator<(const Rational& left, const Rational& right) {
+    const bool left_negative = left.numerator_ < 0;
+    const bool right_negative = right.numerator_ < 0;
+
+    if (left_negative != right_negative) {
+        return left_negative;
+    }
+
+    const int comparison = compare_unsigned_fractions(
+        magnitude(left.numerator_),
+        static_cast<u64>(left.denominator_),
+        magnitude(right.numerator_),
+        static_cast<u64>(right.denominator_));
+
+    return left_negative ? comparison > 0 : comparison < 0;
+}
+
+bool operator<=(const Rational& left, const Rational& right) {
+    return !(right < left);
+}
+
+bool operator>(const Rational& left, const Rational& right) {
+    return right < left;
+}
+
+bool operator>=(const Rational& left, const Rational& right) {
+    return !(left < right);
+}
 
 int64_t Rational::round_half_up_to_int64() const {
     const int64_t quotient = numerator_ / denominator_;
@@ -253,18 +308,26 @@ int64_t days_from_civil(int32_t year, unsigned month, unsigned day) {
         + day - 1U;
     const unsigned day_of_era =
         year_of_era * 365U + year_of_era / 4U - year_of_era / 100U + day_of_year;
-    return static_cast<int64_t>(era) * 146097 + static_cast<int64_t>(day_of_era) - 719468;
+    return static_cast<int64_t>(era) * 146097 +
+           static_cast<int64_t>(day_of_era) - 719468;
 }
 
-void civil_from_days(int64_t ordinal, int32_t& year, int32_t& month, int32_t& day) {
+void civil_from_days(
+    int64_t ordinal,
+    int32_t& year,
+    int32_t& month,
+    int32_t& day) {
     ordinal += 719468;
-    const int64_t era = (ordinal >= 0 ? ordinal : ordinal - 146096) / 146097;
-    const unsigned day_of_era = static_cast<unsigned>(ordinal - era * 146097);
+    const int64_t era =
+        (ordinal >= 0 ? ordinal : ordinal - 146096) / 146097;
+    const unsigned day_of_era =
+        static_cast<unsigned>(ordinal - era * 146097);
     const unsigned year_of_era =
         (day_of_era - day_of_era / 1460U + day_of_era / 36524U -
          day_of_era / 146096U) / 365U;
     const int32_t year_value =
-        static_cast<int32_t>(year_of_era) + static_cast<int32_t>(era) * 400;
+        static_cast<int32_t>(year_of_era) +
+        static_cast<int32_t>(era) * 400;
     const unsigned day_of_year =
         day_of_era - (365U * year_of_era + year_of_era / 4U -
                       year_of_era / 100U);
@@ -285,7 +348,10 @@ Date::Date(int32_t year, int32_t month, int32_t day)
         throw CalcError("invalid date");
     }
     ordinal_ = static_cast<int32_t>(
-        days_from_civil(year, static_cast<unsigned>(month), static_cast<unsigned>(day)));
+        days_from_civil(
+            year,
+            static_cast<unsigned>(month),
+            static_cast<unsigned>(day)));
 }
 
 Date::Date(int32_t ordinal, bool) : ordinal_(ordinal) {}
@@ -323,13 +389,18 @@ int32_t Date::day() const {
     return result_day;
 }
 
-int32_t Date::ordinal() const noexcept { return ordinal_; }
+int32_t Date::ordinal() const noexcept {
+    return ordinal_;
+}
 
 int32_t Date::days_in_month(int32_t year, int32_t month) {
     if (year < 1 || year > 9999 || month < 1 || month > 12) {
         throw CalcError("invalid month");
     }
-    static const int32_t days[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    static const int32_t days[] = {
+        31, 28, 31, 30, 31, 30,
+        31, 31, 30, 31, 30, 31
+    };
     if (month == 2 && is_leap(year)) {
         return 29;
     }
@@ -341,21 +412,40 @@ Date Date::first_of_month(int32_t year, int32_t month) {
 }
 
 Date operator+(Date date, int32_t days) {
-    const int64_t result = static_cast<int64_t>(date.ordinal_) + days;
+    const int64_t result =
+        static_cast<int64_t>(date.ordinal_) + days;
     return Date::from_ordinal(static_cast<int32_t>(result));
 }
 
 int32_t operator-(Date left, Date right) {
     const int64_t result =
-        static_cast<int64_t>(left.ordinal_) - static_cast<int64_t>(right.ordinal_);
+        static_cast<int64_t>(left.ordinal_) -
+        static_cast<int64_t>(right.ordinal_);
     return static_cast<int32_t>(result);
 }
 
-bool operator==(Date left, Date right) { return left.ordinal_ == right.ordinal_; }
-bool operator!=(Date left, Date right) { return !(left == right); }
-bool operator<(Date left, Date right) { return left.ordinal_ < right.ordinal_; }
-bool operator<=(Date left, Date right) { return !(right < left); }
-bool operator>(Date left, Date right) { return right < left; }
-bool operator>=(Date left, Date right) { return !(left < right); }
+bool operator==(Date left, Date right) {
+    return left.ordinal_ == right.ordinal_;
+}
+
+bool operator!=(Date left, Date right) {
+    return !(left == right);
+}
+
+bool operator<(Date left, Date right) {
+    return left.ordinal_ < right.ordinal_;
+}
+
+bool operator<=(Date left, Date right) {
+    return !(right < left);
+}
+
+bool operator>(Date left, Date right) {
+    return right < left;
+}
+
+bool operator>=(Date left, Date right) {
+    return !(left < right);
+}
 
 }
