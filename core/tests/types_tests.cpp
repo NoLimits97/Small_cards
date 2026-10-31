@@ -78,7 +78,7 @@ TEST(date_round_trip) {
     const Date last{2026, 12, 31};
 
     REQUIRE_EQUAL(first.ordinal(), 0);
-    REQUIRE_EQUAL(Date{1969, 12, 31}.ordinal(), -1);
+    REQUIRE_EQUAL((Date{1969, 12, 31}.ordinal()), -1);
 
     REQUIRE_EQUAL(Date::from_ordinal(first.ordinal()), first);
     REQUIRE_EQUAL(Date::from_ordinal(leap.ordinal()), leap);
