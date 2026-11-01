@@ -462,6 +462,9 @@ TEST(storage_employment_event_crud_by_record_id) {
     QTemporaryDir directory;
     mk::Database database = make_database(directory);
 
+    (void)mk::create_employee(database, employee());
+    (void)mk::create_employee(database, employee());
+
     const int64_t employee_id =
         mk::create_employee(database, employee());
     REQUIRE(employee_id != 999999);
@@ -540,6 +543,9 @@ TEST(storage_employment_event_crud_by_record_id) {
 TEST(storage_time_fact_crud_by_record_id) {
     QTemporaryDir directory;
     mk::Database database = make_database(directory);
+
+    (void)mk::create_employee(database, employee());
+    (void)mk::create_employee(database, employee());
 
     const int64_t employee_id =
         mk::create_employee(database, employee());
