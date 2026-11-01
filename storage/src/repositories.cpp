@@ -274,6 +274,27 @@ std::vector<Org> list_orgs(Database& database) {
         org_from);
 }
 
+std::vector<Department> list_departments(
+    Database& database,
+    int64_t org_id) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,org_id,name FROM Department "
+        "WHERE org_id=? ORDER BY id");
+    query.addBindValue(org_id);
+    check(query);
+
+    std::vector<Department> result;
+    while (query.next()) {
+        result.push_back({
+            query.value(0).toLongLong(),
+            query.value(1).toLongLong(),
+            text(query, 2).toStdString()
+        });
+    }
+    return result;
+}
+
 int64_t create_position(
     Database& database,
     const Position& value) {
@@ -324,6 +345,24 @@ std::vector<Position> list_positions(
         database,
         "SELECT id,name FROM Position ORDER BY id",
         position_from);
+}
+
+std::vector<EmploymentKind> list_employment_kinds(
+    Database& database) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,code,name FROM EmploymentKind ORDER BY id");
+    check(query);
+
+    std::vector<EmploymentKind> result;
+    while (query.next()) {
+        result.push_back({
+            query.value(0).toLongLong(),
+            text(query, 1).toStdString(),
+            text(query, 2).toStdString()
+        });
+    }
+    return result;
 }
 
 int64_t create_work_schedule(
@@ -655,6 +694,31 @@ std::vector<EmploymentEvent> list_employment_events(
         result.push_back(event_from(query));
     }
     return result;
+}
+
+int64_t create_employee_with_hire_event(
+    Database& database,
+    const Employee& employee,
+    const EmploymentEvent& hire_event) {
+    if (hire_event.kind != EventKind::Hire) {
+        throw std::invalid_argument("initial event must be a hire");
+    }
+
+    database.transaction();
+    try {
+        const int64_t employee_id = create_employee(database, employee);
+        EmploymentEvent saved_event = hire_event;
+        saved_event.employee_id = employee_id;
+        (void)create_employment_event(database, saved_event);
+        database.commit();
+        return employee_id;
+    } catch (...) {
+        try {
+            database.rollback();
+        } catch (...) {
+        }
+        throw;
+    }
 }
 
 int64_t create_time_fact(

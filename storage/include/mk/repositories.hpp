@@ -17,11 +17,15 @@ void update_org(Database&, const Org&);
 void delete_org(Database&, int64_t);
 std::vector<Org> list_orgs(Database&);
 
+std::vector<Department> list_departments(Database&, int64_t org_id);
+
 int64_t create_position(Database&, const Position&);
 std::optional<Position> read_position(Database&, int64_t);
 void update_position(Database&, const Position&);
 void delete_position(Database&, int64_t);
 std::vector<Position> list_positions(Database&);
+
+std::vector<EmploymentKind> list_employment_kinds(Database&);
 
 int64_t create_work_schedule(Database&, const WorkSchedule&);
 std::optional<WorkSchedule> read_work_schedule(Database&, int64_t);
@@ -43,6 +47,11 @@ void update_employment_event(
     const EmploymentEvent&);
 void delete_employment_event(Database&, int64_t);
 std::vector<EmploymentEvent> list_employment_events(Database&, int64_t);
+
+int64_t create_employee_with_hire_event(
+    Database&,
+    const Employee&,
+    const EmploymentEvent&);
 
 int64_t create_time_fact(Database&, const TimeFact&);
 std::optional<TimeFact> read_time_fact(Database&, int64_t);

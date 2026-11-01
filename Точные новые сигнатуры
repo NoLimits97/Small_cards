@@ -1,0 +1,4 @@
+std::vector<Department> list_departments(Database&, int64_t org_id);
+std::vector<EmploymentKind> list_employment_kinds(Database&);
+int64_t create_employee_with_hire_event(
+    Database&, const Employee&, const EmploymentEvent&);
