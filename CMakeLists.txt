@@ -73,7 +73,7 @@ else()
 endif()
 
 add_executable(storage_tests
-    core/tests/main.cpp
+    storage/tests/main.cpp
     storage/tests/storage_tests.cpp
 )
 
