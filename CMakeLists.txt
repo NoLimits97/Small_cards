@@ -13,6 +13,7 @@ add_library(mk_core STATIC
     core/src/slicing.cpp
     core/src/time_derive.cpp
     core/src/dependency_graph.cpp
+    core/src/engine.cpp
 )
 
 target_include_directories(mk_core
@@ -35,6 +36,7 @@ add_executable(core_tests
     core/tests/slicing_tests.cpp
     core/tests/time_derive_tests.cpp
     core/tests/dependency_graph_tests.cpp
+    core/tests/engine_tests.cpp
 )
 
 target_include_directories(core_tests PRIVATE

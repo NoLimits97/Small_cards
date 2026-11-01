@@ -53,7 +53,8 @@ enum class CalcRole : int32_t {
 };
 
 enum class RoundingPolicy : int32_t {
-    PerLine = 1
+    PerLine = 1,
+    Carry = 2
 };
 
 struct Org {
