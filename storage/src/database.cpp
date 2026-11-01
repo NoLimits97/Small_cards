@@ -106,11 +106,15 @@ void Database::create_new(const QString& path) {
 }
 
 void Database::execute_schema() {
-    execute_script(database_, ":/mk/db/schema.sql");
+    execute_script(
+        database_,
+        read_resource(":/mk/db/schema.sql"));
 }
 
 void Database::execute_seed() {
-    execute_script(database_, ":/mk/db/seed.sql");
+    execute_script(
+        database_,
+        read_resource(":/mk/db/seed.sql"));
 }
 
 void Database::close() {
