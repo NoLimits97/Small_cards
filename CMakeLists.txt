@@ -96,7 +96,10 @@ endif()
 
 add_executable(mk_app
     gui/src/main.cpp
+    gui/src/app_theme.cpp
     gui/src/main_window.cpp
+    gui/include/app_theme.hpp
+    gui/include/main_window.hpp
 )
 
 target_include_directories(mk_app PRIVATE gui/include)
