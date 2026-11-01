@@ -29,6 +29,7 @@ endif()
 add_library(mk_storage STATIC
     storage/src/database.cpp
     storage/src/repositories.cpp
+    storage/src/org_details.cpp
     storage/storage_resources.qrc
 )
 
@@ -77,6 +78,7 @@ endif()
 add_executable(storage_tests
     storage/tests/main.cpp
     storage/tests/storage_tests.cpp
+    storage/tests/org_details_tests.cpp
 )
 
 target_include_directories(storage_tests PRIVATE
