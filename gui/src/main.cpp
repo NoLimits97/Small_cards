@@ -1,3 +1,4 @@
+#include "app_theme.hpp"
 #include "main_window.hpp"
 
 #include <QApplication>
@@ -18,6 +19,8 @@ int main(int argc, char* argv[]) {
     if (!style_specified) {
         QApplication::setStyle(QStringLiteral("Fusion"));
     }
+
+    mk::gui::apply_app_theme();
 
     mk::gui::MainWindow window;
     window.show();
