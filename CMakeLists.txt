@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(Qt6 REQUIRED COMPONENTS Core Sql)
+
 add_library(mk_core STATIC
     core/src/types.cpp
     core/src/formula.cpp
@@ -16,15 +18,37 @@ add_library(mk_core STATIC
     core/src/engine.cpp
 )
 
-target_include_directories(mk_core
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/core/include
-)
+target_include_directories(mk_core PUBLIC core/include)
 
 if(MSVC)
     target_compile_options(mk_core PRIVATE /W4 /WX)
 else()
     target_compile_options(mk_core PRIVATE -Wall -Wextra -Werror)
+endif()
+
+add_library(mk_storage STATIC
+    storage/src/database.cpp
+    storage/src/repositories.cpp
+    storage/storage_resources.qrc
+)
+
+target_include_directories(mk_storage
+    PUBLIC
+        core/include
+        storage/include
+)
+
+target_link_libraries(mk_storage
+    PUBLIC
+        mk_core
+        Qt6::Core
+        Qt6::Sql
+)
+
+if(MSVC)
+    target_compile_options(mk_storage PRIVATE /W4 /WX)
+else()
+    target_compile_options(mk_storage PRIVATE -Wall -Wextra -Werror)
 endif()
 
 add_executable(core_tests
@@ -39,10 +63,7 @@ add_executable(core_tests
     core/tests/engine_tests.cpp
 )
 
-target_include_directories(core_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/core/tests
-)
-
+target_include_directories(core_tests PRIVATE core/tests)
 target_link_libraries(core_tests PRIVATE mk_core)
 
 if(MSVC)
@@ -51,5 +72,24 @@ else()
     target_compile_options(core_tests PRIVATE -Wall -Wextra -Werror)
 endif()
 
+add_executable(storage_tests
+    core/tests/main.cpp
+    storage/tests/storage_tests.cpp
+)
+
+target_include_directories(storage_tests PRIVATE
+    core/tests
+    storage/include
+)
+
+target_link_libraries(storage_tests PRIVATE mk_storage)
+
+if(MSVC)
+    target_compile_options(storage_tests PRIVATE /W4 /WX)
+else()
+    target_compile_options(storage_tests PRIVATE -Wall -Wextra -Werror)
+endif()
+
 enable_testing()
 add_test(NAME core_tests COMMAND core_tests)
+add_test(NAME storage_tests COMMAND storage_tests)
