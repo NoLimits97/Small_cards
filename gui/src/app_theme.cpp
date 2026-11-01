@@ -6,7 +6,7 @@
 namespace mk::gui {
 
 void apply_app_theme() {
-    QApplication::setStyleSheet(QStringLiteral(R"(
+    qApp->setStyleSheet(QStringLiteral(R"(
         QMainWindow {
             background: #F3F5F7;
             color: #202938;
