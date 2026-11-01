@@ -15,8 +15,14 @@ namespace {
 
 Rational evaluate_formula(
     const std::string& source,
-    const std::map<std::string, Rational>& context = {}) {
+    const std::map<std::string, Rational>& context) {
     return mk::evaluate(mk::parse(source), context);
+}
+
+Rational evaluate_formula(const std::string& source) {
+    return evaluate_formula(
+        source,
+        std::map<std::string, Rational>{});
 }
 
 }
