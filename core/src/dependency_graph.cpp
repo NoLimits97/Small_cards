@@ -70,6 +70,59 @@ std::string cycle_error(const std::string& code) {
     return "cyclic dependency involving calc item: " + code;
 }
 
+std::map<std::string, std::vector<std::string>> build_dependents(
+    const DependencyGraph& graph) {
+    std::map<std::string, std::vector<std::string>> dependents;
+
+    for (const auto& entry : graph) {
+        for (const std::string& dependency : entry.second) {
+            dependents[dependency].push_back(entry.first);
+        }
+    }
+
+    return dependents;
+}
+
+std::map<std::string, int> dependency_levels(
+    const DependencyGraph& graph) {
+    std::map<std::string, int> remaining_dependencies;
+    std::map<std::string, int> levels;
+    const std::map<std::string, std::vector<std::string>> dependents =
+        build_dependents(graph);
+
+    for (const auto& entry : graph) {
+        remaining_dependencies[entry.first] =
+            static_cast<int>(entry.second.size());
+        levels[entry.first] = 0;
+    }
+
+    std::set<std::string> ready;
+
+    for (const auto& entry : remaining_dependencies) {
+        if (entry.second == 0) {
+            ready.insert(entry.first);
+        }
+    }
+
+    while (!ready.empty()) {
+        const std::string code = *ready.begin();
+        ready.erase(ready.begin());
+
+        for (const std::string& dependent : dependents.at(code)) {
+            levels[dependent] = std::max(
+                levels[dependent],
+                levels[code] + 1);
+
+            --remaining_dependencies[dependent];
+            if (remaining_dependencies[dependent] == 0) {
+                ready.insert(dependent);
+            }
+        }
+    }
+
+    return levels;
+}
+
 }
 
 DependencyGraph build_dependency_graph(
@@ -118,18 +171,16 @@ std::vector<std::string> validate_dependencies(
     }
 
     std::map<std::string, int> remaining_dependencies;
-    std::map<std::string, std::vector<std::string>> dependents;
+    const std::map<std::string, std::vector<std::string>> dependents =
+        build_dependents(graph);
 
     for (const auto& entry : graph) {
         remaining_dependencies[entry.first] =
             static_cast<int>(entry.second.size());
-
-        for (const std::string& dependency : entry.second) {
-            dependents[dependency].push_back(entry.first);
-        }
     }
 
     std::set<std::string> ready;
+
     for (const auto& entry : remaining_dependencies) {
         if (entry.second == 0) {
             ready.insert(entry.first);
@@ -137,13 +188,15 @@ std::vector<std::string> validate_dependencies(
     }
 
     std::size_t processed = 0;
+
     while (!ready.empty()) {
         const std::string code = *ready.begin();
         ready.erase(ready.begin());
         ++processed;
 
-        for (const std::string& dependent : dependents[code]) {
+        for (const std::string& dependent : dependents.at(code)) {
             --remaining_dependencies[dependent];
+
             if (remaining_dependencies[dependent] == 0) {
                 ready.insert(dependent);
             }
@@ -173,59 +226,29 @@ std::vector<CalcItem> sort_calc_items(
     const std::map<std::string, const CalcItem*> indexed =
         index_items(items);
     const DependencyGraph graph = build_graph(items, indexed);
+    const std::map<std::string, int> levels =
+        dependency_levels(graph);
 
-    std::map<std::string, int> remaining_dependencies;
-    std::map<std::string, std::vector<std::string>> dependents;
+    std::vector<CalcItem> result = items;
 
-    for (const auto& entry : graph) {
-        remaining_dependencies[entry.first] =
-            static_cast<int>(entry.second.size());
-
-        for (const std::string& dependency : entry.second) {
-            dependents[dependency].push_back(entry.first);
-        }
-    }
-
-    auto compare_ready = [&indexed](
-        const std::string& left,
-        const std::string& right) {
-        const CalcItem& left_item = *indexed.at(left);
-        const CalcItem& right_item = *indexed.at(right);
-
-        if (left_item.stage != right_item.stage) {
-            return left_item.stage < right_item.stage;
-        }
-
-        if (left_item.priority != right_item.priority) {
-            return left_item.priority < right_item.priority;
-        }
-
-        return left_item.code < right_item.code;
-    };
-
-    std::set<std::string, decltype(compare_ready)> ready(compare_ready);
-
-    for (const auto& entry : remaining_dependencies) {
-        if (entry.second == 0) {
-            ready.insert(entry.first);
-        }
-    }
-
-    std::vector<CalcItem> result;
-    result.reserve(items.size());
-
-    while (!ready.empty()) {
-        const std::string code = *ready.begin();
-        ready.erase(ready.begin());
-        result.push_back(*indexed.at(code));
-
-        for (const std::string& dependent : dependents[code]) {
-            --remaining_dependencies[dependent];
-            if (remaining_dependencies[dependent] == 0) {
-                ready.insert(dependent);
+    std::sort(
+        result.begin(),
+        result.end(),
+        [&levels](const CalcItem& left, const CalcItem& right) {
+            if (left.stage != right.stage) {
+                return left.stage < right.stage;
             }
-        }
-    }
+
+            if (levels.at(left.code) != levels.at(right.code)) {
+                return levels.at(left.code) < levels.at(right.code);
+            }
+
+            if (left.priority != right.priority) {
+                return left.priority < right.priority;
+            }
+
+            return left.code < right.code;
+        });
 
     return result;
 }
