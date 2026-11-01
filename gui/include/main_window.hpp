@@ -60,6 +60,7 @@ private:
     QPushButton* create_organization_button_ = nullptr;
     QPushButton* save_organization_button_ = nullptr;
 
+    QLabel* references_status_label_ = nullptr;
     QTableWidget* positions_table_ = nullptr;
     QTableWidget* work_schedules_table_ = nullptr;
     QPushButton* add_position_button_ = nullptr;

@@ -297,6 +297,9 @@ MainWindow::MainWindow(QWidget* parent)
     references_tab->setAutoFillBackground(true);
     auto* references_layout = new QVBoxLayout(references_tab);
 
+    references_status_label_ = new QLabel(references_tab);
+    references_layout->addWidget(references_status_label_);
+
     auto* positions_group =
         new QGroupBox(QStringLiteral("Должности"), references_tab);
     auto* positions_layout = new QVBoxLayout(positions_group);
@@ -405,22 +408,22 @@ MainWindow::MainWindow(QWidget* parent)
             this, [this]() { remove_work_schedule(); });
     connect(refresh_work_schedules_button_, &QPushButton::clicked,
             this, [this]() { refresh_work_schedules(); });
-
-    connect(tabs, &QTabWidget::currentChanged, this, [this, tabs](int index) {
-        if (index == 1 && !selected_org_id_.has_value()) {
-            QMessageBox::information(
-                this,
-                QStringLiteral("Справочники"),
-                QStringLiteral(
-                    "Сначала откройте базу данных и выберите "
-                    "рабочую организацию на вкладке «Организация»."));
-            tabs->setCurrentIndex(0);
-        }
-    });
 }
 
 void MainWindow::update_reference_access() {
     const bool enabled = database_open_ && selected_org_id_.has_value();
+    if (!database_open_) {
+        references_status_label_->setText(
+            QStringLiteral("Откройте базу данных"));
+        references_status_label_->show();
+    } else if (!selected_org_id_.has_value()) {
+        references_status_label_->setText(
+            QStringLiteral("Выберите организацию"));
+        references_status_label_->show();
+    } else {
+        references_status_label_->hide();
+    }
+
     positions_table_->setEnabled(enabled);
     work_schedules_table_->setEnabled(enabled);
     add_position_button_->setEnabled(enabled);
