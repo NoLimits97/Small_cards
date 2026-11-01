@@ -358,7 +358,22 @@ MainWindow::MainWindow(QWidget* parent)
     auto* employees_tab = new QWidget(tabs);
     employees_tab->setObjectName(QStringLiteral("employees_tab"));
     employees_tab->setAutoFillBackground(true);
-    new QVBoxLayout(employees_tab);
+    auto* employees_layout = new QVBoxLayout(employees_tab);
+    employees_status_label_ = new QLabel(employees_tab);
+    employees_layout->addWidget(employees_status_label_);
+    employees_table_ = new QTableWidget(employees_tab);
+    setup_table(
+        employees_table_,
+        {QStringLiteral("Табельный номер"), QStringLiteral("ФИО")});
+    employees_table_->setObjectName(QStringLiteral("employees_table"));
+    employees_table_->setSortingEnabled(true);
+    employees_layout->addWidget(employees_table_);
+    auto* employees_buttons = new QHBoxLayout;
+    refresh_employees_button_ =
+        new QPushButton(QStringLiteral("Обновить"), employees_tab);
+    employees_buttons->addWidget(refresh_employees_button_);
+    employees_buttons->addStretch();
+    employees_layout->addLayout(employees_buttons);
 
     auto* time_tab = new QWidget(tabs);
     time_tab->setObjectName(QStringLiteral("time_tab"));
@@ -408,6 +423,8 @@ MainWindow::MainWindow(QWidget* parent)
             this, [this]() { remove_work_schedule(); });
     connect(refresh_work_schedules_button_, &QPushButton::clicked,
             this, [this]() { refresh_work_schedules(); });
+    connect(refresh_employees_button_, &QPushButton::clicked,
+            this, [this]() { refresh_employees(); });
 }
 
 void MainWindow::update_reference_access() {
@@ -437,6 +454,79 @@ void MainWindow::update_reference_access() {
     if (!enabled) {
         positions_table_->setRowCount(0);
         work_schedules_table_->setRowCount(0);
+    }
+}
+
+void MainWindow::update_employee_access() {
+    const bool enabled = database_open_ && selected_org_id_.has_value();
+    employees_table_->setEnabled(enabled);
+    refresh_employees_button_->setEnabled(enabled);
+
+    if (!enabled) {
+        employees_table_->setRowCount(0);
+        employees_table_->clearSelection();
+        employees_table_->setCurrentCell(-1, -1);
+        employees_status_label_->setText(
+            database_open_
+                ? QStringLiteral("Выберите организацию")
+                : QStringLiteral("Откройте базу данных"));
+        employees_status_label_->show();
+    }
+}
+
+void MainWindow::refresh_employees() {
+    if (!database_open_ || !selected_org_id_.has_value()) {
+        update_employee_access();
+        return;
+    }
+
+    employees_table_->setSortingEnabled(false);
+    employees_table_->setRowCount(0);
+    employees_table_->clearSelection();
+    employees_table_->setCurrentCell(-1, -1);
+
+    try {
+        const std::vector<Employee> employees =
+            list_employees(database_, *selected_org_id_);
+
+        for (const Employee& employee : employees) {
+            const int row = employees_table_->rowCount();
+            employees_table_->insertRow(row);
+            auto* number = new QTableWidgetItem(
+                QString::fromStdString(employee.personnel_number));
+            number->setData(
+                Qt::UserRole,
+                QVariant::fromValue(static_cast<qlonglong>(employee.id)));
+            employees_table_->setItem(row, 0, number);
+            employees_table_->setItem(
+                row, 1,
+                new QTableWidgetItem(
+                    QString::fromStdString(employee.full_name)));
+        }
+
+        employees_table_->setSortingEnabled(true);
+        employees_table_->clearSelection();
+        employees_table_->setCurrentCell(-1, -1);
+        if (employees.empty()) {
+            employees_status_label_->setText(
+                QStringLiteral("В выбранной организации нет сотрудников"));
+            employees_status_label_->show();
+        } else {
+            employees_status_label_->hide();
+        }
+    } catch (const std::exception& error) {
+        employees_table_->setRowCount(0);
+        employees_table_->clearSelection();
+        employees_table_->setCurrentCell(-1, -1);
+        employees_table_->setSortingEnabled(true);
+        employees_status_label_->setText(
+            QStringLiteral("Не удалось загрузить список сотрудников."));
+        employees_status_label_->show();
+        QMessageBox::critical(
+            this,
+            QStringLiteral("Ошибка загрузки сотрудников"),
+            QStringLiteral("Не удалось загрузить список сотрудников.\n\n%1")
+                .arg(QString::fromUtf8(error.what())));
     }
 }
 
@@ -671,6 +761,7 @@ void MainWindow::clear_database_view() {
     save_organization_button_->setEnabled(false);
     database_path_label_->setText(QStringLiteral("Файл БД не открыт"));
     update_reference_access();
+    update_employee_access();
 }
 
 void MainWindow::reload_organizations(std::optional<int64_t> selected_id) {
@@ -700,6 +791,7 @@ void MainWindow::reload_organizations(std::optional<int64_t> selected_id) {
     organization_combo_->setEnabled(true);
     create_organization_button_->setEnabled(true);
     update_reference_access();
+    update_employee_access();
 
     if (selected_id.has_value()) {
         const int index = organization_combo_->findData(
@@ -726,8 +818,10 @@ void MainWindow::reload_organizations(std::optional<int64_t> selected_id) {
             organization_kpp_edit_->setEnabled(true);
             save_organization_button_->setEnabled(true);
             update_reference_access();
+            update_employee_access();
             refresh_positions();
             refresh_work_schedules();
+            refresh_employees();
         }
     }
 }
@@ -940,6 +1034,7 @@ void MainWindow::select_organization(int index) {
         organization_kpp_edit_->setEnabled(false);
         save_organization_button_->setEnabled(false);
         update_reference_access();
+        update_employee_access();
         return;
     }
 
@@ -965,8 +1060,10 @@ void MainWindow::select_organization(int index) {
         organization_kpp_edit_->setEnabled(true);
         save_organization_button_->setEnabled(true);
         update_reference_access();
+        update_employee_access();
         refresh_positions();
         refresh_work_schedules();
+        refresh_employees();
     } catch (const std::exception& error) {
         const QSignalBlocker blocker(organization_combo_);
         organization_combo_->setCurrentIndex(

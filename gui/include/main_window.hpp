@@ -45,6 +45,9 @@ private:
     void edit_work_schedule();
     void remove_work_schedule();
 
+    void update_employee_access();
+    void refresh_employees();
+
     Database database_;
     bool database_open_ = false;
     std::optional<int64_t> selected_org_id_;
@@ -71,6 +74,10 @@ private:
     QPushButton* edit_work_schedule_button_ = nullptr;
     QPushButton* remove_work_schedule_button_ = nullptr;
     QPushButton* refresh_work_schedules_button_ = nullptr;
+
+    QLabel* employees_status_label_ = nullptr;
+    QTableWidget* employees_table_ = nullptr;
+    QPushButton* refresh_employees_button_ = nullptr;
 };
 
 }

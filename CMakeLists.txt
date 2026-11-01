@@ -93,6 +93,7 @@ add_executable(storage_tests
     storage/tests/main.cpp
     storage/tests/storage_tests.cpp
     storage/tests/org_details_tests.cpp
+    storage/tests/employee_list_tests.cpp
 )
 
 target_include_directories(storage_tests PRIVATE
