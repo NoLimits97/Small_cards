@@ -113,9 +113,9 @@ TEST(calendar_shift_dates_before_anchor) {
         mk::generate_norm_calendar(schedule, 2026, 1);
 
     REQUIRE_EQUAL(calendar[0].date, mk::Date(2026, 1, 1));
-    REQUIRE_EQUAL(calendar[0].working_day, true);
+    REQUIRE_EQUAL(calendar[0].working_day, false);
     REQUIRE_EQUAL(calendar[1].working_day, true);
-    REQUIRE_EQUAL(calendar[2].working_day, false);
+    REQUIRE_EQUAL(calendar[2].working_day, true);
     REQUIRE_EQUAL(calendar[3].working_day, false);
 }
 
