@@ -32,6 +32,8 @@ add_library(mk_storage STATIC
     storage/storage_resources.qrc
 )
 
+set_target_properties(mk_storage PROPERTIES AUTORCC ON)
+
 target_include_directories(mk_storage
     PUBLIC
         core/include

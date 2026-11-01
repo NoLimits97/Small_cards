@@ -1,12 +1,22 @@
 #include "mk/database.hpp"
 
 #include <QFile>
+#include <QResource>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QVariant>
 
 #include <stdexcept>
 #include <utility>
+
+void initialize_storage_resources() {
+    static const bool initialized = [] {
+        Q_INIT_RESOURCE(storage_resources);
+        return true;
+    }();
+
+    (void)initialized;
+}
 
 namespace mk {
 namespace {
@@ -16,6 +26,8 @@ void throw_sql(const QSqlQuery& query) {
 }
 
 QString read_resource(const QString& path) {
+    initialize_storage_resources();
+
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
         throw std::runtime_error(
