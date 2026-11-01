@@ -1,6 +1,5 @@
 #include "mk/formula.hpp"
 
-#include <cctype>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -53,9 +52,24 @@ struct Token {
     std::size_t position;
 };
 
-[[noreturn]] void syntax_error(std::size_t position, const std::string& message) {
+[[noreturn]] void syntax_error(
+    std::size_t position,
+    const std::string& message) {
     throw CalcError(
         "syntax error at position " + std::to_string(position) + ": " + message);
+}
+
+bool is_digit(char character) {
+    return character >= '0' && character <= '9';
+}
+
+bool is_identifier_start(char character) {
+    return (character >= 'a' && character <= 'z') || character == '_';
+}
+
+bool is_identifier_character(char character) {
+    return is_identifier_start(character) ||
+           (character >= '0' && character <= '9');
 }
 
 class Lexer {
@@ -72,10 +86,9 @@ public:
         const std::size_t start = position_;
         const char character = source_[position_];
 
-        if (std::isdigit(static_cast<unsigned char>(character)) != 0) {
+        if (is_digit(character)) {
             while (position_ < source_.size() &&
-                   std::isdigit(
-                       static_cast<unsigned char>(source_[position_])) != 0) {
+                   is_digit(source_[position_])) {
                 ++position_;
             }
 
@@ -83,12 +96,13 @@ public:
                 ++position_;
                 const std::size_t fraction_start = position_;
                 while (position_ < source_.size() &&
-                       std::isdigit(
-                           static_cast<unsigned char>(source_[position_])) != 0) {
+                       is_digit(source_[position_])) {
                     ++position_;
                 }
                 if (position_ == fraction_start) {
-                    syntax_error(position_, "expected digits after decimal point");
+                    syntax_error(
+                        position_,
+                        "expected digits after decimal point");
                 }
             }
 
@@ -98,18 +112,11 @@ public:
                 start};
         }
 
-        if (std::islower(static_cast<unsigned char>(character)) != 0 ||
-            character == '_') {
+        if (is_identifier_start(character)) {
             ++position_;
-            while (position_ < source_.size()) {
-                const char next = source_[position_];
-                if (std::islower(static_cast<unsigned char>(next)) != 0 ||
-                    std::isdigit(static_cast<unsigned char>(next)) != 0 ||
-                    next == '_') {
-                    ++position_;
-                } else {
-                    break;
-                }
+            while (position_ < source_.size() &&
+                   is_identifier_character(source_[position_])) {
+                ++position_;
             }
             return {
                 TokenKind::identifier,
@@ -172,9 +179,13 @@ public:
 
 private:
     void skip_spaces() {
-        while (position_ < source_.size() &&
-               std::isspace(
-                   static_cast<unsigned char>(source_[position_])) != 0) {
+        while (position_ < source_.size()) {
+            const char character = source_[position_];
+            if (character != ' ' && character != '\t' &&
+                character != '\n' && character != '\r' &&
+                character != '\f' && character != '\v') {
+                break;
+            }
             ++position_;
         }
     }
@@ -202,6 +213,15 @@ uint64_t parse_unsigned_digits(
     return result;
 }
 
+uint64_t checked_scale_multiply(uint64_t value, uint64_t factor) {
+    const uint64_t limit =
+        static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+    if (value > limit / factor) {
+        throw CalcError("literal overflow");
+    }
+    return value * factor;
+}
+
 Rational parse_number(const std::string& text) {
     const std::size_t dot = text.find('.');
     if (dot == std::string::npos) {
@@ -209,34 +229,48 @@ Rational parse_number(const std::string& text) {
             parse_unsigned_digits(text, 0, text.size())));
     }
 
-    std::size_t fraction_end = text.size();
-    while (fraction_end > dot + 1 && text[fraction_end - 1] == '0') {
-        --fraction_end;
+    std::string digits = text.substr(0, dot) + text.substr(dot + 1);
+    std::size_t fraction_digits = text.size() - dot - 1;
+
+    const std::size_t first_nonzero = digits.find_first_not_of('0');
+    if (first_nonzero == std::string::npos) {
+        return Rational{};
+    }
+    digits.erase(0, first_nonzero);
+
+    while (fraction_digits > 0 && !digits.empty() &&
+           digits.back() == '0') {
+        digits.pop_back();
+        --fraction_digits;
     }
 
-    const uint64_t integer_part =
-        parse_unsigned_digits(text, 0, dot);
-    const std::size_t fraction_digits = fraction_end - dot - 1;
+    if (digits.empty()) {
+        return Rational{};
+    }
 
-    uint64_t scale = 1;
+    uint64_t numerator = parse_unsigned_digits(0 + digits, 0, digits.size());
+
+    while (fraction_digits > 0 && numerator % 2U == 0U) {
+        numerator /= 2U;
+        --fraction_digits;
+    }
+
+    std::size_t five_reductions = 0;
+    while (five_reductions < fraction_digits && numerator % 5U == 0U) {
+        numerator /= 5U;
+        ++five_reductions;
+    }
+    fraction_digits -= five_reductions;
+
+    uint64_t denominator = 1;
     for (std::size_t index = 0; index < fraction_digits; ++index) {
-        if (scale > static_cast<uint64_t>(
-                        std::numeric_limits<int64_t>::max()) / 10U) {
-            throw CalcError("literal overflow");
-        }
-        scale *= 10U;
+        denominator = checked_scale_multiply(denominator, 2U);
+        denominator = checked_scale_multiply(denominator, 5U);
     }
 
-    const uint64_t fraction_part =
-        parse_unsigned_digits(text, dot + 1, fraction_end);
-
-    Rational result(static_cast<int64_t>(integer_part));
-    if (fraction_digits != 0) {
-        result += Rational(
-            static_cast<int64_t>(fraction_part),
-            static_cast<int64_t>(scale));
-    }
-    return result;
+    return Rational(
+        static_cast<int64_t>(numerator),
+        static_cast<int64_t>(denominator));
 }
 
 class LiteralNode final : public FormulaNode {
@@ -283,7 +317,9 @@ enum class UnaryOperator {
 
 class UnaryNode final : public FormulaNode {
 public:
-    UnaryNode(UnaryOperator operation, std::unique_ptr<FormulaNode> operand)
+    UnaryNode(
+        UnaryOperator operation,
+        std::unique_ptr<FormulaNode> operand)
         : operation_(operation), operand_(std::move(operand)) {}
 
     Rational evaluate(
@@ -339,10 +375,12 @@ public:
         const std::map<std::string, Rational>& context) const override {
         const Rational left = left_->evaluate(context);
 
-        if (operation_ == BinaryOperator::logical_and && left == Rational{}) {
+        if (operation_ == BinaryOperator::logical_and &&
+            left == Rational{}) {
             return Rational{};
         }
-        if (operation_ == BinaryOperator::logical_or && left != Rational{}) {
+        if (operation_ == BinaryOperator::logical_or &&
+            left != Rational{}) {
             return Rational{1};
         }
 
@@ -402,8 +440,11 @@ private:
 
 class CallNode final : public FormulaNode {
 public:
-    CallNode(std::string name, std::vector<std::unique_ptr<FormulaNode>> arguments)
-        : name_(std::move(name)), arguments_(std::move(arguments)) {}
+    CallNode(
+        std::string name,
+        std::vector<std::unique_ptr<FormulaNode>> arguments)
+        : name_(std::move(name)),
+          arguments_(std::move(arguments)) {}
 
     Rational evaluate(
         const std::map<std::string, Rational>& context) const override {
@@ -429,7 +470,8 @@ public:
             return value < Rational{} ? -value : value;
         }
         if (name_ == "round") {
-            return Rational(arguments_[0]->evaluate(context).round_half_up_to_int64());
+            return Rational(
+                arguments_[0]->evaluate(context).round_half_up_to_int64());
         }
 
         throw CalcError("unknown function: " + name_);
@@ -477,7 +519,9 @@ private:
         while (current_.kind == TokenKind::pipe) {
             consume(TokenKind::pipe);
             result = std::make_unique<BinaryNode>(
-                BinaryOperator::logical_or, std::move(result), parse_and());
+                BinaryOperator::logical_or,
+                std::move(result),
+                parse_and());
         }
         return result;
     }
@@ -522,7 +566,9 @@ private:
             }
             consume(current_.kind);
             result = std::make_unique<BinaryNode>(
-                operation, std::move(result), parse_additive());
+                operation,
+                std::move(result),
+                parse_additive());
         }
     }
 
@@ -556,7 +602,9 @@ private:
                 operation = BinaryOperator::modulo;
             }
             result = std::make_unique<BinaryNode>(
-                operation, std::move(result), parse_unary());
+                operation,
+                std::move(result),
+                parse_unary());
         }
         return result;
     }
@@ -587,7 +635,9 @@ private:
 
         if (current_.kind == TokenKind::identifier) {
             const std::string name = current_.text;
+            const std::size_t name_position = current_.position;
             consume(TokenKind::identifier);
+
             if (current_.kind != TokenKind::left_parenthesis) {
                 return std::make_unique<VariableNode>(name);
             }
@@ -603,6 +653,7 @@ private:
                     consume(TokenKind::comma);
                 }
             }
+
             if (current_.kind != TokenKind::right_parenthesis) {
                 syntax_error(current_.position, "expected ')'");
             }
@@ -612,15 +663,19 @@ private:
                 name == "min" || name == "max" ? 2 :
                 name == "abs" || name == "round" ? 1 :
                 name == "if" ? 3 : 0;
+
             if (expected == 0) {
-                throw CalcError("unknown function: " + name);
+                syntax_error(name_position, "unknown function: " + name);
             }
             if (arguments.size() != expected) {
-                throw CalcError(
+                syntax_error(
+                    name_position,
                     "invalid argument count for function: " + name);
             }
+
             return std::make_unique<CallNode>(
-                name, std::move(arguments));
+                name,
+                std::move(arguments));
         }
 
         if (current_.kind == TokenKind::left_parenthesis) {

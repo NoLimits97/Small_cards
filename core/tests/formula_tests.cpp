@@ -6,6 +6,7 @@
 #include <limits>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 using mk::Formula;
@@ -25,18 +26,58 @@ Rational evaluate_formula(const std::string& source) {
         std::map<std::string, Rational>{});
 }
 
+template <typename Function>
+void require_calc_error(Function&& function) {
+    bool caught_calc_error = false;
+    try {
+        function();
+    } catch (const mk::CalcError&) {
+        caught_calc_error = true;
+    } catch (...) {
+        throw test_framework::Failure(
+            "expected CalcError, got another exception");
+    }
+
+    if (!caught_calc_error) {
+        throw test_framework::Failure("expected CalcError");
+    }
+}
+
+template <typename Function>
+void require_position(Function&& function, const std::string& position) {
+    try {
+        function();
+        throw test_framework::Failure("expected CalcError");
+    } catch (const mk::CalcError& error) {
+        REQUIRE(
+            std::string(error.what()).find(position) != std::string::npos);
+    }
+}
+
 }
 
 TEST(formula_arithmetic_and_precedence) {
     REQUIRE_EQUAL(evaluate_formula("1 + 2 * 3"), Rational{7});
     REQUIRE_EQUAL(evaluate_formula("-2 * 3"), Rational{-6});
+    REQUIRE_EQUAL(evaluate_formula("+2"), Rational{2});
     REQUIRE_EQUAL(evaluate_formula("10 - 3 - 2"), Rational{5});
     REQUIRE_EQUAL(evaluate_formula("(1 + 2) * 3"), Rational{9});
     REQUIRE_EQUAL(evaluate_formula("20 / 5 % 3"), Rational{1});
+    REQUIRE_EQUAL(evaluate_formula("1 | 0 & 0"), Rational{1});
+    REQUIRE_EQUAL(evaluate_formula("2 > 1 & 0"), Rational{});
+}
+
+TEST(formula_unary_logic) {
+    REQUIRE_EQUAL(evaluate_formula("!0"), Rational{1});
+    REQUIRE_EQUAL(evaluate_formula("!2"), Rational{});
+    REQUIRE_EQUAL(evaluate_formula("!-2"), Rational{});
 }
 
 TEST(formula_decimal_exactness) {
     REQUIRE_EQUAL(evaluate_formula("0.1 + 0.2"), (Rational{3, 10}));
+    REQUIRE_EQUAL(
+        evaluate_formula("0.0000000000000000002"),
+        (Rational{1, 5000000000000000000LL}));
     REQUIRE_EQUAL(
         evaluate_formula(
             "base_amount * 15 / 17",
@@ -67,8 +108,9 @@ TEST(formula_modulo_validation) {
     REQUIRE_EQUAL(evaluate_formula("-7 % 3"), Rational{-1});
     REQUIRE_EQUAL(evaluate_formula("7 % -3"), Rational{1});
     REQUIRE_THROWS(evaluate_formula("1.5 % 1"));
-    REQUIRE_THROWS(evaluate_formula("1 % 0"));
-    REQUIRE_THROWS(evaluate_formula("1 / 0"));
+    REQUIRE_CALC_ERROR(evaluate_formula("1 % 1.5"));
+    REQUIRE_CALC_ERROR(evaluate_formula("1 % 0"));
+    REQUIRE_CALC_ERROR(evaluate_formula("1 / 0"));
 
     REQUIRE_EQUAL(
         evaluate_formula(
@@ -82,30 +124,64 @@ TEST(formula_short_circuit_and_if) {
     REQUIRE_EQUAL(evaluate_formula("if(0, 1 / 0, 42)"), Rational{42});
     REQUIRE_EQUAL(evaluate_formula("0 & (1 / 0)"), Rational{});
     REQUIRE_EQUAL(evaluate_formula("1 | (1 / 0)"), Rational{1});
+    REQUIRE_CALC_ERROR(evaluate_formula("0 | unknown"));
+    REQUIRE_CALC_ERROR(evaluate_formula("1 & unknown"));
+    REQUIRE_EQUAL(
+        evaluate_formula(
+            "if(1, 42, missing)",
+            {{"missing", Rational{9}}}),
+        Rational{42});
 }
 
 TEST(formula_variables) {
     const Formula formula = mk::parse(
-        "if(flag, first_value, missing) | (other_value & hidden)");
+        "if(flag, first_value, flag) | (other_value & hidden)");
     REQUIRE_EQUAL(
         mk::extract_variables(formula),
         (std::vector<std::string>{
-            "first_value", "flag", "hidden", "missing", "other_value"}));
+            "first_value", "flag", "hidden", "other_value"}));
 
-    REQUIRE_THROWS(evaluate_formula("unknown_name"));
+    REQUIRE_CALC_ERROR(evaluate_formula("unknown_name"));
+}
+
+TEST(formula_overflow) {
+    REQUIRE_CALC_ERROR(evaluate_formula(
+        "9223372036854775807 + 1"));
+    REQUIRE_CALC_ERROR(evaluate_formula(
+        "abs(minimum)",
+        {{"minimum", Rational{std::numeric_limits<int64_t>::min()}}}));
+    REQUIRE_CALC_ERROR(evaluate_formula(
+        "-minimum",
+        {{"minimum", Rational{std::numeric_limits<int64_t>::min()}}}));
+}
+
+TEST(formula_identifier_validation) {
+    REQUIRE_CALC_ERROR(mk::parse("Upper"));
+    REQUIRE_CALC_ERROR(mk::parse("é"));
+    REQUIRE_CALC_ERROR(mk::parse("foo$bar"));
+}
+
+TEST(formula_empty_formula) {
+    const Formula formula;
+    REQUIRE_CALC_ERROR(mk::evaluate(formula, {}));
+    REQUIRE_CALC_ERROR(mk::extract_variables(formula));
 }
 
 TEST(formula_parser_errors) {
-    REQUIRE_THROWS(mk::parse(""));
-    REQUIRE_THROWS(mk::parse("1 +"));
-    REQUIRE_THROWS(mk::parse("1 2"));
-    REQUIRE_THROWS(mk::parse("1 + 2 junk"));
-    REQUIRE_THROWS(mk::parse("unknown(1)"));
-    REQUIRE_THROWS(mk::parse("min(1)"));
-    REQUIRE_THROWS(mk::parse("max(1, 2, 3)"));
-    REQUIRE_THROWS(mk::parse("if(1, 2)"));
-    REQUIRE_THROWS(mk::parse("1.2.3"));
-    REQUIRE_THROWS(mk::parse("9223372036854775808"));
+    REQUIRE_CALC_ERROR(mk::parse(""));
+    REQUIRE_CALC_ERROR(mk::parse("1 +"));
+    REQUIRE_CALC_ERROR(mk::parse("1 2"));
+    REQUIRE_CALC_ERROR(mk::parse("1 + 2 junk"));
+    REQUIRE_CALC_ERROR(mk::parse("1.2.3"));
+    REQUIRE_CALC_ERROR(mk::parse("9223372036854775808"));
+    REQUIRE_CALC_ERROR(mk::parse("0.0000000000000000000000000000000000000000000000000000000000001"));
+
+    require_position(
+        [] { (void)mk::parse("unknown(1)"); },
+        "position 0");
+    require_position(
+        [] { (void)mk::parse("min(1)"); },
+        "position 0");
 
     try {
         (void)mk::parse("1 + @");
