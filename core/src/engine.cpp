@@ -45,7 +45,7 @@ Rational rational_minutes(int64_t value) {
 }
 
 Money round_rubles_to_money(const Rational& value) {
-    return Money(value * Rational(100)).round_half_up_to_int64();
+    return Money((value * Rational(100)).round_half_up_to_int64());
 }
 
 Rational money_to_rational(Money value) {
@@ -502,7 +502,6 @@ CalcOutput calculate(const CalcInput& input) {
         const std::vector<CalcItem> items =
             sort_selected_items(selected_items(input, *resolved));
 
-        std::map<std::string, Rational> exact_values;
         Rational accruals_taxable;
         Rational deductions_pre_tax;
         Rational contrib_base;
@@ -517,13 +516,12 @@ CalcOutput calculate(const CalcInput& input) {
                 evaluate(parse(item.formula), context);
 
             Rational carried_value = formula_value;
-            Money amount = round_rubles_to_money(formula_value);
+            const Money amount = round_rubles_to_money(formula_value);
 
             if (item.rounding_policy == RoundingPolicy::PerLine) {
                 carried_value = money_to_rational(amount);
             }
 
-            exact_values[item.code] = carried_value;
             context[item.code] = carried_value;
 
             calculation.lines.push_back({
