@@ -14,6 +14,7 @@ class QComboBox;
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QTableWidget;
 
 namespace mk::gui {
 
@@ -34,16 +35,41 @@ private:
     void reload_organizations(std::optional<int64_t> selected_id = std::nullopt);
     void clear_database_view();
 
+    void update_reference_access();
+    void refresh_positions();
+    void refresh_work_schedules();
+    void add_position();
+    void edit_position();
+    void remove_position();
+    void add_work_schedule();
+    void edit_work_schedule();
+    void remove_work_schedule();
+
     Database database_;
     bool database_open_ = false;
     std::optional<int64_t> selected_org_id_;
     QString saved_name_;
+    QString saved_inn_;
+    QString saved_kpp_;
 
     QLabel* database_path_label_ = nullptr;
     QComboBox* organization_combo_ = nullptr;
     QLineEdit* organization_name_edit_ = nullptr;
+    QLineEdit* organization_inn_edit_ = nullptr;
+    QLineEdit* organization_kpp_edit_ = nullptr;
     QPushButton* create_organization_button_ = nullptr;
     QPushButton* save_organization_button_ = nullptr;
+
+    QTableWidget* positions_table_ = nullptr;
+    QTableWidget* work_schedules_table_ = nullptr;
+    QPushButton* add_position_button_ = nullptr;
+    QPushButton* edit_position_button_ = nullptr;
+    QPushButton* remove_position_button_ = nullptr;
+    QPushButton* refresh_positions_button_ = nullptr;
+    QPushButton* add_work_schedule_button_ = nullptr;
+    QPushButton* edit_work_schedule_button_ = nullptr;
+    QPushButton* remove_work_schedule_button_ = nullptr;
+    QPushButton* refresh_work_schedules_button_ = nullptr;
 };
 
 }
