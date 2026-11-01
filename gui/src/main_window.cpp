@@ -21,8 +21,11 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSignalBlocker>
+#include <QSizePolicy>
 #include <QSpinBox>
+#include <QStyle>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -210,7 +213,46 @@ void setup_table(QTableWidget* table, const QStringList& headers) {
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setSelectionMode(QAbstractItemView::SingleSelection);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    table->horizontalHeader()->setStretchLastSection(true);
+    table->horizontalHeader()->setDefaultAlignment(
+        Qt::AlignLeft | Qt::AlignVCenter);
+    table->horizontalHeader()->setStretchLastSection(false);
+}
+
+void setup_columns(
+    QTableWidget* table,
+    int stretch_column,
+    bool sortable = false) {
+    QHeaderView* header = table->horizontalHeader();
+    header->setStretchLastSection(false);
+
+    int minimum_width = 0;
+    for (int column = 0; column < table->columnCount(); ++column) {
+        if (column == stretch_column) {
+            continue;
+        }
+
+        const QTableWidgetItem* item = table->horizontalHeaderItem(column);
+        const int text_width = item == nullptr
+            ? 0
+            : header->fontMetrics().horizontalAdvance(item->text());
+        const int sort_width = sortable
+            ? header->style()->pixelMetric(
+                QStyle::PM_HeaderMarkSize, nullptr, header)
+            : 0;
+        const int required_width = text_width + sort_width + 32;
+        if (required_width > minimum_width) {
+            minimum_width = required_width;
+        }
+    }
+    header->setMinimumSectionSize(minimum_width);
+
+    for (int column = 0; column < table->columnCount(); ++column) {
+        header->setSectionResizeMode(
+            column,
+            column == stretch_column
+                ? QHeaderView::Stretch
+                : QHeaderView::ResizeToContents);
+    }
 }
 
 std::optional<int64_t> selected_id(QTableWidget* table) {
@@ -266,6 +308,9 @@ MainWindow::MainWindow(QWidget* parent)
     database_path_label_ =
         new QLabel(QStringLiteral("Файл БД не открыт"), organization_tab);
     database_path_label_->setObjectName(QStringLiteral("database_path_label"));
+    database_path_label_->setWordWrap(true);
+    database_path_label_->setSizePolicy(
+        QSizePolicy::Ignored, QSizePolicy::Preferred);
     layout->addWidget(database_path_label_);
 
     auto* form = new QFormLayout;
@@ -275,6 +320,11 @@ MainWindow::MainWindow(QWidget* parent)
         QStringLiteral("organization_name_edit"));
     organization_inn_edit_ = new QLineEdit(organization_tab);
     organization_kpp_edit_ = new QLineEdit(organization_tab);
+    organization_combo_->setMinimumWidth(0);
+    organization_name_edit_->setMinimumWidth(0);
+    organization_inn_edit_->setMinimumWidth(0);
+    organization_kpp_edit_->setMinimumWidth(0);
+    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     form->addRow(QStringLiteral("Организация:"), organization_combo_);
     form->addRow(QStringLiteral("Название:"), organization_name_edit_);
     form->addRow(QStringLiteral("ИНН:"), organization_inn_edit_);
@@ -295,18 +345,26 @@ MainWindow::MainWindow(QWidget* parent)
     auto* references_tab = new QWidget(tabs);
     references_tab->setObjectName(QStringLiteral("references_tab"));
     references_tab->setAutoFillBackground(true);
-    auto* references_layout = new QVBoxLayout(references_tab);
+    auto* references_outer_layout = new QVBoxLayout(references_tab);
+    auto* references_scroll = new QScrollArea(references_tab);
+    references_scroll->setWidgetResizable(true);
+    references_scroll->setFrameShape(QFrame::NoFrame);
+    references_outer_layout->addWidget(references_scroll);
 
-    references_status_label_ = new QLabel(references_tab);
+    auto* references_content = new QWidget(references_scroll);
+    auto* references_layout = new QVBoxLayout(references_content);
+
+    references_status_label_ = new QLabel(references_content);
     references_layout->addWidget(references_status_label_);
 
     auto* positions_group =
-        new QGroupBox(QStringLiteral("Должности"), references_tab);
+        new QGroupBox(QStringLiteral("Должности"), references_content);
     auto* positions_layout = new QVBoxLayout(positions_group);
     positions_table_ = new QTableWidget(positions_group);
     setup_table(
         positions_table_,
         {QStringLiteral("ID"), QStringLiteral("Название")});
+    setup_columns(positions_table_, 1);
     positions_layout->addWidget(positions_table_);
     auto* positions_buttons = new QHBoxLayout;
     add_position_button_ =
@@ -326,7 +384,7 @@ MainWindow::MainWindow(QWidget* parent)
     references_layout->addWidget(positions_group);
 
     auto* schedules_group =
-        new QGroupBox(QStringLiteral("Графики работы"), references_tab);
+        new QGroupBox(QStringLiteral("Графики работы"), references_content);
     auto* schedules_layout = new QVBoxLayout(schedules_group);
     work_schedules_table_ = new QTableWidget(schedules_group);
     setup_table(
@@ -337,6 +395,7 @@ MainWindow::MainWindow(QWidget* parent)
          QStringLiteral("Минут в день"),
          QStringLiteral("Цикл"),
          QStringLiteral("Опорная дата")});
+    setup_columns(work_schedules_table_, 1);
     schedules_layout->addWidget(work_schedules_table_);
     auto* schedules_buttons = new QHBoxLayout;
     add_work_schedule_button_ =
@@ -354,6 +413,7 @@ MainWindow::MainWindow(QWidget* parent)
     schedules_buttons->addStretch();
     schedules_layout->addLayout(schedules_buttons);
     references_layout->addWidget(schedules_group);
+    references_scroll->setWidget(references_content);
 
     auto* employees_tab = new QWidget(tabs);
     employees_tab->setObjectName(QStringLiteral("employees_tab"));
@@ -367,6 +427,7 @@ MainWindow::MainWindow(QWidget* parent)
         {QStringLiteral("Табельный номер"), QStringLiteral("ФИО")});
     employees_table_->setObjectName(QStringLiteral("employees_table"));
     employees_table_->setSortingEnabled(true);
+    setup_columns(employees_table_, 1, true);
     employees_layout->addWidget(employees_table_);
     auto* employees_buttons = new QHBoxLayout;
     refresh_employees_button_ =
@@ -594,7 +655,6 @@ void MainWindow::refresh_work_schedules() {
                 row, 4,
                 new QTableWidgetItem(
                     QString::fromStdString(schedule.shift_cycle)));
-
             QString anchor_text;
             if (schedule.anchor_date.has_value()) {
                 anchor_text = QDate(
@@ -760,6 +820,7 @@ void MainWindow::clear_database_view() {
     create_organization_button_->setEnabled(false);
     save_organization_button_->setEnabled(false);
     database_path_label_->setText(QStringLiteral("Файл БД не открыт"));
+    database_path_label_->setToolTip(QString());
     update_reference_access();
     update_employee_access();
 }
@@ -926,6 +987,7 @@ void MainWindow::create_database() {
         reload_organizations();
         database_path_label_->setText(
             QStringLiteral("Файл БД: %1").arg(path));
+        database_path_label_->setToolTip(path);
     } catch (const std::exception& error) {
         database_.close();
         clear_database_view();
@@ -962,6 +1024,7 @@ void MainWindow::open_database() {
         reload_organizations();
         database_path_label_->setText(
             QStringLiteral("Файл БД: %1").arg(path));
+        database_path_label_->setToolTip(path);
     } catch (const std::exception& error) {
         database_.close();
         clear_database_view();
