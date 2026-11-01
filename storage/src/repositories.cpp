@@ -4,7 +4,6 @@
 
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QJsonObject>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QVariant>
@@ -53,72 +52,92 @@ QVariant optional_date(const std::optional<Date>& value) {
         : QVariant();
 }
 
-QString text(QSqlQuery& q, int i) {
-    return q.value(i).toString();
+QString text(QSqlQuery& query, int index) {
+    return query.value(index).toString();
 }
 
-std::optional<std::string> optional_text(QSqlQuery& q, int i) {
-    return q.value(i).isNull()
+std::optional<std::string> optional_text(
+    QSqlQuery& query,
+    int index) {
+    return query.value(index).isNull()
         ? std::nullopt
-        : std::optional<std::string>(text(q, i).toStdString());
+        : std::optional<std::string>(
+            text(query, index).toStdString());
 }
 
-std::optional<int64_t> optional_id(QSqlQuery& q, int i) {
-    return q.value(i).isNull()
+std::optional<int64_t> optional_id(
+    QSqlQuery& query,
+    int index) {
+    return query.value(index).isNull()
         ? std::nullopt
-        : std::optional<int64_t>(q.value(i).toLongLong());
+        : std::optional<int64_t>(
+            query.value(index).toLongLong());
 }
 
-void exec_bind(QSqlQuery& q) {
-    check(q);
+Org org_from(QSqlQuery& query) {
+    return {
+        query.value(0).toLongLong(),
+        text(query, 1).toStdString()
+    };
 }
 
-Org org_from(QSqlQuery& q) {
-    return {q.value(0).toLongLong(), text(q, 1).toStdString()};
+Position position_from(QSqlQuery& query) {
+    return {
+        query.value(0).toLongLong(),
+        text(query, 1).toStdString()
+    };
 }
 
-Position position_from(QSqlQuery& q) {
-    return {q.value(0).toLongLong(), text(q, 1).toStdString()};
-}
-
-WorkSchedule schedule_from(QSqlQuery& q) {
+WorkSchedule schedule_from(QSqlQuery& query) {
     WorkSchedule result;
-    result.id = q.value(0).toLongLong();
-    result.name = text(q, 1).toStdString();
-    result.kind = static_cast<ScheduleKind>(q.value(2).toInt());
-    result.normative_minutes_per_day = q.value(3).toInt();
-    result.shift_cycle = text(q, 4).toStdString();
+    result.id = query.value(0).toLongLong();
+    result.name = text(query, 1).toStdString();
+    result.kind =
+        static_cast<ScheduleKind>(query.value(2).toInt());
+    result.normative_minutes_per_day =
+        query.value(3).toInt();
+    result.shift_cycle =
+        text(query, 4).toStdString();
 
-    if (!q.value(5).isNull()) {
-        result.anchor_date = Date::from_ordinal(q.value(5).toInt());
+    if (!query.value(5).isNull()) {
+        result.anchor_date =
+            Date::from_ordinal(query.value(5).toInt());
     }
 
     return result;
 }
 
-Employee employee_from(QSqlQuery& q) {
+Employee employee_from(QSqlQuery& query) {
     Employee result;
-    result.id = q.value(0).toLongLong();
-    result.personnel_number = text(q, 1).toStdString();
-    result.full_name = text(q, 2).toStdString();
-    result.org_id = q.value(3).toLongLong();
-    result.department_id = q.value(4).toLongLong();
-    result.position_id = q.value(5).toLongLong();
-    result.employment_kind_id = q.value(6).toLongLong();
-    result.work_schedule_id = q.value(7).toLongLong();
-    result.payroll_preset_id = optional_id(q, 8);
-    result.rate = Money(q.value(9).toLongLong());
-    result.rate_unit = static_cast<RateUnit>(q.value(10).toInt());
-    result.hire_date = Date::from_ordinal(q.value(11).toInt());
+    result.id = query.value(0).toLongLong();
+    result.personnel_number =
+        text(query, 1).toStdString();
+    result.full_name =
+        text(query, 2).toStdString();
+    result.org_id = query.value(3).toLongLong();
+    result.department_id = query.value(4).toLongLong();
+    result.position_id = query.value(5).toLongLong();
+    result.employment_kind_id =
+        query.value(6).toLongLong();
+    result.work_schedule_id =
+        query.value(7).toLongLong();
+    result.payroll_preset_id = optional_id(query, 8);
+    result.rate = Money(query.value(9).toLongLong());
+    result.rate_unit =
+        static_cast<RateUnit>(query.value(10).toInt());
+    result.hire_date =
+        Date::from_ordinal(query.value(11).toInt());
 
-    if (!q.value(12).isNull()) {
-        result.termination_date = Date::from_ordinal(q.value(12).toInt());
+    if (!query.value(12).isNull()) {
+        result.termination_date =
+            Date::from_ordinal(query.value(12).toInt());
     }
 
     return result;
 }
 
-EmployeeSlice employee_slice_from(const Employee& employee) {
+EmployeeSlice employee_slice_from(
+    const Employee& employee) {
     EmployeeSlice result;
     result.employee_id = employee.id;
     result.personnel_number = employee.personnel_number;
@@ -126,55 +145,70 @@ EmployeeSlice employee_slice_from(const Employee& employee) {
     result.org_id = employee.org_id;
     result.department_id = employee.department_id;
     result.position_id = employee.position_id;
-    result.employment_kind_id = employee.employment_kind_id;
-    result.work_schedule_id = employee.work_schedule_id;
-    result.payroll_preset_id = employee.payroll_preset_id;
+    result.employment_kind_id =
+        employee.employment_kind_id;
+    result.work_schedule_id =
+        employee.work_schedule_id;
+    result.payroll_preset_id =
+        employee.payroll_preset_id;
     result.rate = employee.rate;
     result.rate_unit = employee.rate_unit;
     return result;
 }
 
-EmploymentEvent event_from(QSqlQuery& q) {
+EmploymentEvent event_from(QSqlQuery& query) {
     EmploymentEvent result;
-    result.employee_id = q.value(1).toLongLong();
-    result.date = Date::from_ordinal(q.value(2).toInt());
-    result.kind = static_cast<EventKind>(q.value(3).toInt());
-    result.personnel_number = optional_text(q, 4);
-    result.full_name = optional_text(q, 5);
-    result.org_id = optional_id(q, 6);
-    result.department_id = optional_id(q, 7);
-    result.position_id = optional_id(q, 8);
-    result.employment_kind_id = optional_id(q, 9);
-    result.work_schedule_id = optional_id(q, 10);
-    result.payroll_preset_id = optional_id(q, 11);
+    result.employee_id =
+        query.value(1).toLongLong();
+    result.date =
+        Date::from_ordinal(query.value(2).toInt());
+    result.kind =
+        static_cast<EventKind>(query.value(3).toInt());
+    result.personnel_number =
+        optional_text(query, 4);
+    result.full_name =
+        optional_text(query, 5);
+    result.org_id = optional_id(query, 6);
+    result.department_id = optional_id(query, 7);
+    result.position_id = optional_id(query, 8);
+    result.employment_kind_id = optional_id(query, 9);
+    result.work_schedule_id = optional_id(query, 10);
+    result.payroll_preset_id = optional_id(query, 11);
 
-    if (!q.value(12).isNull()) {
-        result.rate = Money(q.value(12).toLongLong());
+    if (!query.value(12).isNull()) {
+        result.rate =
+            Money(query.value(12).toLongLong());
     }
 
-    if (!q.value(13).isNull()) {
+    if (!query.value(13).isNull()) {
         result.rate_unit =
-            static_cast<RateUnit>(q.value(13).toInt());
+            static_cast<RateUnit>(
+                query.value(13).toInt());
     }
 
-    result.termination_reason_id = optional_id(q, 14);
+    result.termination_reason_id =
+        optional_id(query, 14);
     return result;
 }
 
-TimeFact fact_from(QSqlQuery& q) {
+TimeFact fact_from(QSqlQuery& query) {
     TimeFact result;
-    result.employee_id = q.value(1).toLongLong();
-    result.date = Date::from_ordinal(q.value(2).toInt());
-    result.worked_minutes = q.value(3).toInt();
-    result.absence_kind_id = optional_id(q, 4);
+    result.employee_id =
+        query.value(1).toLongLong();
+    result.date =
+        Date::from_ordinal(query.value(2).toInt());
+    result.worked_minutes =
+        query.value(3).toInt();
+    result.absence_kind_id =
+        optional_id(query, 4);
     return result;
 }
 
-template <typename T, typename F>
+template <typename T, typename Function>
 std::vector<T> query_list(
     Database& database,
     const QString& sql,
-    F&& convert) {
+    Function&& convert) {
     QSqlQuery query(database.sql());
     query.prepare(sql);
     check(query);
@@ -183,676 +217,887 @@ std::vector<T> query_list(
     while (query.next()) {
         result.push_back(convert(query));
     }
-
     return result;
 }
 
+void require_affected(
+    const QSqlQuery& query,
+    const char* message) {
+    if (query.numRowsAffected() == 0) {
+        throw std::runtime_error(message);
+    }
 }
 
-int64_t create_org(Database& db, const Org& value) {
-    QSqlQuery q(db.sql());
-    q.prepare("INSERT INTO Org(name) VALUES(?)");
-    q.addBindValue(QString::fromStdString(value.name));
-    check(q);
-    return id(q);
 }
 
-std::optional<Org> read_org(Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare("SELECT id,name FROM Org WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    return q.next()
-        ? std::optional<Org>(org_from(q))
+int64_t create_org(Database& database, const Org& value) {
+    QSqlQuery query(database.sql());
+    query.prepare("INSERT INTO Org(name) VALUES(?)");
+    query.addBindValue(QString::fromStdString(value.name));
+    check(query);
+    return id(query);
+}
+
+std::optional<Org> read_org(
+    Database& database,
+    int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare("SELECT id,name FROM Org WHERE id=?");
+    query.addBindValue(value);
+    check(query);
+    return query.next()
+        ? std::optional<Org>(org_from(query))
         : std::nullopt;
 }
 
-void update_org(Database& db, const Org& value) {
-    QSqlQuery q(db.sql());
-    q.prepare("UPDATE Org SET name=? WHERE id=?");
-    q.addBindValue(QString::fromStdString(value.name));
-    q.addBindValue(value.id);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("organization not found");
-    }
+void update_org(Database& database, const Org& value) {
+    QSqlQuery query(database.sql());
+    query.prepare("UPDATE Org SET name=? WHERE id=?");
+    query.addBindValue(QString::fromStdString(value.name));
+    query.addBindValue(value.id);
+    check(query);
+    require_affected(query, "organization not found");
 }
 
-void delete_org(Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare("DELETE FROM Org WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("organization not found");
-    }
+void delete_org(Database& database, int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare("DELETE FROM Org WHERE id=?");
+    query.addBindValue(value);
+    check(query);
+    require_affected(query, "organization not found");
 }
 
-std::vector<Org> list_orgs(Database& db) {
-    return query_list<Org>(db, "SELECT id,name FROM Org ORDER BY id", org_from);
+std::vector<Org> list_orgs(Database& database) {
+    return query_list<Org>(
+        database,
+        "SELECT id,name FROM Org ORDER BY id",
+        org_from);
 }
 
-int64_t create_position(Database& db, const Position& value) {
-    QSqlQuery q(db.sql());
-    q.prepare("INSERT INTO Position(name) VALUES(?)");
-    q.addBindValue(QString::fromStdString(value.name));
-    check(q);
-    return id(q);
+int64_t create_position(
+    Database& database,
+    const Position& value) {
+    QSqlQuery query(database.sql());
+    query.prepare("INSERT INTO Position(name) VALUES(?)");
+    query.addBindValue(QString::fromStdString(value.name));
+    check(query);
+    return id(query);
 }
 
-std::optional<Position> read_position(Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare("SELECT id,name FROM Position WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    return q.next()
-        ? std::optional<Position>(position_from(q))
+std::optional<Position> read_position(
+    Database& database,
+    int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,name FROM Position WHERE id=?");
+    query.addBindValue(value);
+    check(query);
+    return query.next()
+        ? std::optional<Position>(position_from(query))
         : std::nullopt;
 }
 
-void update_position(Database& db, const Position& value) {
-    QSqlQuery q(db.sql());
-    q.prepare("UPDATE Position SET name=? WHERE id=?");
-    q.addBindValue(QString::fromStdString(value.name));
-    q.addBindValue(value.id);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("position not found");
-    }
+void update_position(
+    Database& database,
+    const Position& value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "UPDATE Position SET name=? WHERE id=?");
+    query.addBindValue(
+        QString::fromStdString(value.name));
+    query.addBindValue(value.id);
+    check(query);
+    require_affected(query, "position not found");
 }
 
-void delete_position(Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare("DELETE FROM Position WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("position not found");
-    }
+void delete_position(Database& database, int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare("DELETE FROM Position WHERE id=?");
+    query.addBindValue(value);
+    check(query);
+    require_affected(query, "position not found");
 }
 
-std::vector<Position> list_positions(Database& db) {
+std::vector<Position> list_positions(
+    Database& database) {
     return query_list<Position>(
-        db, "SELECT id,name FROM Position ORDER BY id", position_from);
+        database,
+        "SELECT id,name FROM Position ORDER BY id",
+        position_from);
 }
 
-int64_t create_work_schedule(Database& db, const WorkSchedule& value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
+int64_t create_work_schedule(
+    Database& database,
+    const WorkSchedule& value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
         "INSERT INTO WorkSchedule("
-        "name,kind,normative_minutes_per_day,shift_cycle,anchor_date)"
-        " VALUES(?,?,?,?,?)");
-    q.addBindValue(QString::fromStdString(value.name));
-    q.addBindValue(static_cast<int>(value.kind));
-    q.addBindValue(value.normative_minutes_per_day);
-    q.addBindValue(QString::fromStdString(value.shift_cycle));
-    q.addBindValue(value.anchor_date.has_value()
-        ? QVariant(value.anchor_date->ordinal())
-        : QVariant());
-    check(q);
-    return id(q);
+        "name,kind,normative_minutes_per_day,"
+        "shift_cycle,anchor_date) VALUES(?,?,?,?,?)");
+    query.addBindValue(
+        QString::fromStdString(value.name));
+    query.addBindValue(static_cast<int>(value.kind));
+    query.addBindValue(
+        value.normative_minutes_per_day);
+    query.addBindValue(
+        QString::fromStdString(value.shift_cycle));
+    query.addBindValue(optional_date(value.anchor_date));
+    check(query);
+    return id(query);
 }
 
 std::optional<WorkSchedule> read_work_schedule(
-    Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "SELECT id,name,kind,normative_minutes_per_day,"
-        "shift_cycle,anchor_date FROM WorkSchedule WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    return q.next()
-        ? std::optional<WorkSchedule>(schedule_from(q))
+    Database& database,
+    int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,name,kind,"
+        "normative_minutes_per_day,shift_cycle,"
+        "anchor_date FROM WorkSchedule WHERE id=?");
+    query.addBindValue(value);
+    check(query);
+    return query.next()
+        ? std::optional<WorkSchedule>(
+            schedule_from(query))
         : std::nullopt;
 }
 
-void update_work_schedule(Database& db, const WorkSchedule& value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
+void update_work_schedule(
+    Database& database,
+    const WorkSchedule& value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
         "UPDATE WorkSchedule SET name=?,kind=?,"
-        "normative_minutes_per_day=?,shift_cycle=?,anchor_date=? WHERE id=?");
-    q.addBindValue(QString::fromStdString(value.name));
-    q.addBindValue(static_cast<int>(value.kind));
-    q.addBindValue(value.normative_minutes_per_day);
-    q.addBindValue(QString::fromStdString(value.shift_cycle));
-    q.addBindValue(optional_date(value.anchor_date));
-    q.addBindValue(value.id);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("work schedule not found");
-    }
+        "normative_minutes_per_day=?,shift_cycle=?,"
+        "anchor_date=? WHERE id=?");
+    query.addBindValue(
+        QString::fromStdString(value.name));
+    query.addBindValue(static_cast<int>(value.kind));
+    query.addBindValue(
+        value.normative_minutes_per_day);
+    query.addBindValue(
+        QString::fromStdString(value.shift_cycle));
+    query.addBindValue(optional_date(value.anchor_date));
+    query.addBindValue(value.id);
+    check(query);
+    require_affected(query, "work schedule not found");
 }
 
-void delete_work_schedule(Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare("DELETE FROM WorkSchedule WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("work schedule not found");
-    }
+void delete_work_schedule(
+    Database& database,
+    int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "DELETE FROM WorkSchedule WHERE id=?");
+    query.addBindValue(value);
+    check(query);
+    require_affected(query, "work schedule not found");
 }
 
-std::vector<WorkSchedule> list_work_schedules(Database& db) {
+std::vector<WorkSchedule> list_work_schedules(
+    Database& database) {
     return query_list<WorkSchedule>(
-        db,
-        "SELECT id,name,kind,normative_minutes_per_day,"
-        "shift_cycle,anchor_date FROM WorkSchedule ORDER BY id",
+        database,
+        "SELECT id,name,kind,"
+        "normative_minutes_per_day,shift_cycle,"
+        "anchor_date FROM WorkSchedule ORDER BY id",
         schedule_from);
 }
 
 std::vector<WorkSchedule> list_work_schedules(
-    Database& db, int64_t) {
-    return list_work_schedules(db);
+    Database& database,
+    int64_t) {
+    return list_work_schedules(database);
 }
 
-int64_t create_employee(Database& db, const Employee& value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
+int64_t create_employee(
+    Database& database,
+    const Employee& value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
         "INSERT INTO Employee("
-        "personnel_number,full_name,org_id,department_id,position_id,"
-        "employment_kind_id,work_schedule_id,payroll_preset_id,rate_cents,"
-        "rate_unit,hire_date,termination_date)"
+        "personnel_number,full_name,org_id,"
+        "department_id,position_id,"
+        "employment_kind_id,work_schedule_id,"
+        "payroll_preset_id,rate_cents,rate_unit,"
+        "hire_date,termination_date)"
         " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
-    q.addBindValue(QString::fromStdString(value.personnel_number));
-    q.addBindValue(QString::fromStdString(value.full_name));
-    q.addBindValue(value.org_id);
-    q.addBindValue(value.department_id);
-    q.addBindValue(value.position_id);
-    q.addBindValue(value.employment_kind_id);
-    q.addBindValue(value.work_schedule_id);
-    q.addBindValue(optional_value(value.payroll_preset_id));
-    q.addBindValue(value.rate.cents);
-    q.addBindValue(static_cast<int>(value.rate_unit));
-    q.addBindValue(value.hire_date.ordinal());
-    q.addBindValue(value.termination_date.has_value()
-        ? QVariant(value.termination_date->ordinal())
-        : QVariant());
-    check(q);
-    return id(q);
+    query.addBindValue(
+        QString::fromStdString(value.personnel_number));
+    query.addBindValue(
+        QString::fromStdString(value.full_name));
+    query.addBindValue(value.org_id);
+    query.addBindValue(value.department_id);
+    query.addBindValue(value.position_id);
+    query.addBindValue(value.employment_kind_id);
+    query.addBindValue(value.work_schedule_id);
+    query.addBindValue(
+        optional_value(value.payroll_preset_id));
+    query.addBindValue(value.rate.cents);
+    query.addBindValue(
+        static_cast<int>(value.rate_unit));
+    query.addBindValue(value.hire_date.ordinal());
+    query.addBindValue(
+        optional_date(value.termination_date));
+    check(query);
+    return id(query);
 }
 
-std::optional<Employee> read_employee(Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "SELECT id,personnel_number,full_name,org_id,department_id,"
-        "position_id,employment_kind_id,work_schedule_id,payroll_preset_id,"
-        "rate_cents,rate_unit,hire_date,termination_date "
+std::optional<Employee> read_employee(
+    Database& database,
+    int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,personnel_number,full_name,"
+        "org_id,department_id,position_id,"
+        "employment_kind_id,work_schedule_id,"
+        "payroll_preset_id,rate_cents,rate_unit,"
+        "hire_date,termination_date "
         "FROM Employee WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    return q.next()
-        ? std::optional<Employee>(employee_from(q))
+    query.addBindValue(value);
+    check(query);
+    return query.next()
+        ? std::optional<Employee>(employee_from(query))
         : std::nullopt;
 }
 
-void update_employee(Database& db, const Employee& value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "UPDATE Employee SET personnel_number=?,full_name=?,org_id=?,"
-        "department_id=?,position_id=?,employment_kind_id=?,"
-        "work_schedule_id=?,payroll_preset_id=?,rate_cents=?,rate_unit=?,"
-        "hire_date=?,termination_date=? WHERE id=?");
-    q.addBindValue(QString::fromStdString(value.personnel_number));
-    q.addBindValue(QString::fromStdString(value.full_name));
-    q.addBindValue(value.org_id);
-    q.addBindValue(value.department_id);
-    q.addBindValue(value.position_id);
-    q.addBindValue(value.employment_kind_id);
-    q.addBindValue(value.work_schedule_id);
-    q.addBindValue(optional_value(value.payroll_preset_id));
-    q.addBindValue(value.rate.cents);
-    q.addBindValue(static_cast<int>(value.rate_unit));
-    q.addBindValue(value.hire_date.ordinal());
-    q.addBindValue(value.termination_date.has_value()
-        ? QVariant(value.termination_date->ordinal())
-        : QVariant());
-    q.addBindValue(value.id);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("employee not found");
-    }
+void update_employee(
+    Database& database,
+    const Employee& value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "UPDATE Employee SET personnel_number=?,"
+        "full_name=?,org_id=?,department_id=?,"
+        "position_id=?,employment_kind_id=?,"
+        "work_schedule_id=?,payroll_preset_id=?,"
+        "rate_cents=?,rate_unit=?,hire_date=?,"
+        "termination_date=? WHERE id=?");
+    query.addBindValue(
+        QString::fromStdString(value.personnel_number));
+    query.addBindValue(
+        QString::fromStdString(value.full_name));
+    query.addBindValue(value.org_id);
+    query.addBindValue(value.department_id);
+    query.addBindValue(value.position_id);
+    query.addBindValue(value.employment_kind_id);
+    query.addBindValue(value.work_schedule_id);
+    query.addBindValue(
+        optional_value(value.payroll_preset_id));
+    query.addBindValue(value.rate.cents);
+    query.addBindValue(
+        static_cast<int>(value.rate_unit));
+    query.addBindValue(value.hire_date.ordinal());
+    query.addBindValue(
+        optional_date(value.termination_date));
+    query.addBindValue(value.id);
+    check(query);
+    require_affected(query, "employee not found");
 }
 
-void delete_employee(Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare("DELETE FROM Employee WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("employee not found");
-    }
+void delete_employee(Database& database, int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare("DELETE FROM Employee WHERE id=?");
+    query.addBindValue(value);
+    check(query);
+    require_affected(query, "employee not found");
 }
 
-std::vector<Employee> list_employees(Database& db, int64_t org_id) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "SELECT id,personnel_number,full_name,org_id,department_id,"
-        "position_id,employment_kind_id,work_schedule_id,payroll_preset_id,"
-        "rate_cents,rate_unit,hire_date,termination_date "
-        "FROM Employee WHERE org_id=? ORDER BY id");
-    q.addBindValue(org_id);
-    check(q);
+std::vector<Employee> list_employees(
+    Database& database,
+    int64_t org_id) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,personnel_number,full_name,"
+        "org_id,department_id,position_id,"
+        "employment_kind_id,work_schedule_id,"
+        "payroll_preset_id,rate_cents,rate_unit,"
+        "hire_date,termination_date FROM Employee "
+        "WHERE org_id=? ORDER BY id");
+    query.addBindValue(org_id);
+    check(query);
 
     std::vector<Employee> result;
-    while (q.next()) {
-        result.push_back(employee_from(q));
+    while (query.next()) {
+        result.push_back(employee_from(query));
     }
-
     return result;
 }
 
-int64_t create_employment_event(Database& db, const EmploymentEvent& value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
+int64_t create_employment_event(
+    Database& database,
+    const EmploymentEvent& value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
         "INSERT INTO EmploymentEvent("
-        "employee_id,event_date,kind,personnel_number,full_name,org_id,"
-        "department_id,position_id,employment_kind_id,work_schedule_id,"
-        "payroll_preset_id,rate_cents,rate_unit,termination_reason_id)"
+        "employee_id,event_date,kind,"
+        "personnel_number,full_name,org_id,"
+        "department_id,position_id,"
+        "employment_kind_id,work_schedule_id,"
+        "payroll_preset_id,rate_cents,rate_unit,"
+        "termination_reason_id)"
         " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-    q.addBindValue(value.employee_id);
-    q.addBindValue(value.date.ordinal());
-    q.addBindValue(static_cast<int>(value.kind));
-    q.addBindValue(optional_value(value.personnel_number));
-    q.addBindValue(optional_value(value.full_name));
-    q.addBindValue(optional_value(value.org_id));
-    q.addBindValue(optional_value(value.department_id));
-    q.addBindValue(optional_value(value.position_id));
-    q.addBindValue(optional_value(value.employment_kind_id));
-    q.addBindValue(optional_value(value.work_schedule_id));
-    q.addBindValue(optional_value(value.payroll_preset_id));
-    q.addBindValue(optional_value(value.rate));
-    q.addBindValue(optional_value(value.rate_unit));
-    q.addBindValue(optional_value(value.termination_reason_id));
-    check(q);
-    return id(q);
+    query.addBindValue(value.employee_id);
+    query.addBindValue(value.date.ordinal());
+    query.addBindValue(static_cast<int>(value.kind));
+    query.addBindValue(
+        optional_value(value.personnel_number));
+    query.addBindValue(
+        optional_value(value.full_name));
+    query.addBindValue(optional_value(value.org_id));
+    query.addBindValue(
+        optional_value(value.department_id));
+    query.addBindValue(
+        optional_value(value.position_id));
+    query.addBindValue(
+        optional_value(value.employment_kind_id));
+    query.addBindValue(
+        optional_value(value.work_schedule_id));
+    query.addBindValue(
+        optional_value(value.payroll_preset_id));
+    query.addBindValue(optional_value(value.rate));
+    query.addBindValue(
+        optional_value(value.rate_unit));
+    query.addBindValue(
+        optional_value(value.termination_reason_id));
+    check(query);
+    return id(query);
 }
 
 std::optional<EmploymentEvent> read_employment_event(
-    Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "SELECT id,employee_id,event_date,kind,personnel_number,full_name,"
-        "org_id,department_id,position_id,employment_kind_id,"
-        "work_schedule_id,payroll_preset_id,rate_cents,rate_unit,"
-        "termination_reason_id FROM EmploymentEvent WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    return q.next()
-        ? std::optional<EmploymentEvent>(event_from(q))
+    Database& database,
+    int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,employee_id,event_date,kind,"
+        "personnel_number,full_name,org_id,"
+        "department_id,position_id,"
+        "employment_kind_id,work_schedule_id,"
+        "payroll_preset_id,rate_cents,rate_unit,"
+        "termination_reason_id "
+        "FROM EmploymentEvent WHERE id=?");
+    query.addBindValue(value);
+    check(query);
+    return query.next()
+        ? std::optional<EmploymentEvent>(
+            event_from(query))
         : std::nullopt;
 }
 
-void update_employment_event(Database& db, const EmploymentEvent& value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "UPDATE EmploymentEvent SET employee_id=?,event_date=?,kind=?,"
-        "personnel_number=?,full_name=?,org_id=?,department_id=?,"
-        "position_id=?,employment_kind_id=?,work_schedule_id=?,"
-        "payroll_preset_id=?,rate_cents=?,rate_unit=?,"
+void update_employment_event(
+    Database& database,
+    int64_t event_id,
+    const EmploymentEvent& value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "UPDATE EmploymentEvent SET employee_id=?,"
+        "event_date=?,kind=?,personnel_number=?,"
+        "full_name=?,org_id=?,department_id=?,"
+        "position_id=?,employment_kind_id=?,"
+        "work_schedule_id=?,payroll_preset_id=?,"
+        "rate_cents=?,rate_unit=?,"
         "termination_reason_id=? WHERE id=?");
-    q.addBindValue(value.employee_id);
-    q.addBindValue(value.date.ordinal());
-    q.addBindValue(static_cast<int>(value.kind));
-    q.addBindValue(optional_value(value.personnel_number));
-    q.addBindValue(optional_value(value.full_name));
-    q.addBindValue(optional_value(value.org_id));
-    q.addBindValue(optional_value(value.department_id));
-    q.addBindValue(optional_value(value.position_id));
-    q.addBindValue(optional_value(value.employment_kind_id));
-    q.addBindValue(optional_value(value.work_schedule_id));
-    q.addBindValue(optional_value(value.payroll_preset_id));
-    q.addBindValue(optional_value(value.rate));
-    q.addBindValue(optional_value(value.rate_unit));
-    q.addBindValue(optional_value(value.termination_reason_id));
-    q.addBindValue(value.employee_id);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("employment event not found");
-    }
+    query.addBindValue(value.employee_id);
+    query.addBindValue(value.date.ordinal());
+    query.addBindValue(static_cast<int>(value.kind));
+    query.addBindValue(
+        optional_value(value.personnel_number));
+    query.addBindValue(
+        optional_value(value.full_name));
+    query.addBindValue(optional_value(value.org_id));
+    query.addBindValue(
+        optional_value(value.department_id));
+    query.addBindValue(
+        optional_value(value.position_id));
+    query.addBindValue(
+        optional_value(value.employment_kind_id));
+    query.addBindValue(
+        optional_value(value.work_schedule_id));
+    query.addBindValue(
+        optional_value(value.payroll_preset_id));
+    query.addBindValue(optional_value(value.rate));
+    query.addBindValue(
+        optional_value(value.rate_unit));
+    query.addBindValue(
+        optional_value(value.termination_reason_id));
+    query.addBindValue(event_id);
+    check(query);
+    require_affected(query, "employment event not found");
 }
 
-void delete_employment_event(Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare("DELETE FROM EmploymentEvent WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("employment event not found");
-    }
+void delete_employment_event(
+    Database& database,
+    int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "DELETE FROM EmploymentEvent WHERE id=?");
+    query.addBindValue(value);
+    check(query);
+    require_affected(query, "employment event not found");
 }
 
 std::vector<EmploymentEvent> list_employment_events(
-    Database& db, int64_t employee_id) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "SELECT id,employee_id,event_date,kind,personnel_number,full_name,"
-        "org_id,department_id,position_id,employment_kind_id,"
-        "work_schedule_id,payroll_preset_id,rate_cents,rate_unit,"
+    Database& database,
+    int64_t employee_id) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,employee_id,event_date,kind,"
+        "personnel_number,full_name,org_id,"
+        "department_id,position_id,"
+        "employment_kind_id,work_schedule_id,"
+        "payroll_preset_id,rate_cents,rate_unit,"
         "termination_reason_id FROM EmploymentEvent "
         "WHERE employee_id=? ORDER BY event_date,id");
-    q.addBindValue(employee_id);
-    check(q);
+    query.addBindValue(employee_id);
+    check(query);
 
     std::vector<EmploymentEvent> result;
-    while (q.next()) {
-        result.push_back(event_from(q));
+    while (query.next()) {
+        result.push_back(event_from(query));
     }
-
     return result;
 }
 
-int64_t create_time_fact(Database& db, const TimeFact& value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
+int64_t create_time_fact(
+    Database& database,
+    const TimeFact& value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
         "INSERT INTO TimeFact("
-        "employee_id,fact_date,worked_minutes,absence_kind_id)"
-        " VALUES(?,?,?,?)");
-    q.addBindValue(value.employee_id);
-    q.addBindValue(value.date.ordinal());
-    q.addBindValue(value.worked_minutes);
-    q.addBindValue(optional_value(value.absence_kind_id));
-    check(q);
-    return id(q);
+        "employee_id,fact_date,worked_minutes,"
+        "absence_kind_id) VALUES(?,?,?,?)");
+    query.addBindValue(value.employee_id);
+    query.addBindValue(value.date.ordinal());
+    query.addBindValue(value.worked_minutes);
+    query.addBindValue(
+        optional_value(value.absence_kind_id));
+    check(query);
+    return id(query);
 }
 
-std::optional<TimeFact> read_time_fact(Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "SELECT id,employee_id,fact_date,worked_minutes,absence_kind_id "
+std::optional<TimeFact> read_time_fact(
+    Database& database,
+    int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,employee_id,fact_date,"
+        "worked_minutes,absence_kind_id "
         "FROM TimeFact WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    return q.next()
-        ? std::optional<TimeFact>(fact_from(q))
+    query.addBindValue(value);
+    check(query);
+    return query.next()
+        ? std::optional<TimeFact>(fact_from(query))
         : std::nullopt;
 }
 
-void update_time_fact(Database& db, const TimeFact& value) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "UPDATE TimeFact SET employee_id=?,fact_date=?,"
-        "worked_minutes=?,absence_kind_id=? WHERE id=?");
-    q.addBindValue(value.employee_id);
-    q.addBindValue(value.date.ordinal());
-    q.addBindValue(value.worked_minutes);
-    q.addBindValue(optional_value(value.absence_kind_id));
-    q.addBindValue(value.employee_id);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("time fact not found");
-    }
+void update_time_fact(
+    Database& database,
+    int64_t fact_id,
+    const TimeFact& value) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "UPDATE TimeFact SET employee_id=?,"
+        "fact_date=?,worked_minutes=?,"
+        "absence_kind_id=? WHERE id=?");
+    query.addBindValue(value.employee_id);
+    query.addBindValue(value.date.ordinal());
+    query.addBindValue(value.worked_minutes);
+    query.addBindValue(
+        optional_value(value.absence_kind_id));
+    query.addBindValue(fact_id);
+    check(query);
+    require_affected(query, "time fact not found");
 }
 
-void delete_time_fact(Database& db, int64_t value) {
-    QSqlQuery q(db.sql());
-    q.prepare("DELETE FROM TimeFact WHERE id=?");
-    q.addBindValue(value);
-    check(q);
-    if (q.numRowsAffected() == 0) {
-        throw std::runtime_error("time fact not found");
-    }
+void delete_time_fact(
+    Database& database,
+    int64_t value) {
+    QSqlQuery query(database.sql());
+    query.prepare("DELETE FROM TimeFact WHERE id=?");
+    query.addBindValue(value);
+    check(query);
+    require_affected(query, "time fact not found");
 }
 
 std::vector<TimeFact> list_time_facts(
-    Database& db, int64_t employee_id, Date from, Date to) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "SELECT id,employee_id,fact_date,worked_minutes,absence_kind_id "
-        "FROM TimeFact WHERE employee_id=? AND fact_date>=? "
-        "AND fact_date<=? ORDER BY fact_date,id");
-    q.addBindValue(employee_id);
-    q.addBindValue(from.ordinal());
-    q.addBindValue(to.ordinal());
-    check(q);
+    Database& database,
+    int64_t employee_id,
+    Date from,
+    Date to) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,employee_id,fact_date,"
+        "worked_minutes,absence_kind_id "
+        "FROM TimeFact WHERE employee_id=? "
+        "AND fact_date>=? AND fact_date<=? "
+        "ORDER BY fact_date,id");
+    query.addBindValue(employee_id);
+    query.addBindValue(from.ordinal());
+    query.addBindValue(to.ordinal());
+    check(query);
 
     std::vector<TimeFact> result;
-    while (q.next()) {
-        result.push_back(fact_from(q));
+    while (query.next()) {
+        result.push_back(fact_from(query));
     }
-
     return result;
 }
 
-std::vector<AbsenceKind> list_absence_kinds(Database& db) {
-    QSqlQuery q(db.sql());
-    q.prepare("SELECT id,code,name,paid FROM AbsenceKind ORDER BY id");
-    check(q);
+std::vector<AbsenceKind> list_absence_kinds(
+    Database& database) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,code,name,paid "
+        "FROM AbsenceKind ORDER BY id");
+    check(query);
 
     std::vector<AbsenceKind> result;
-    while (q.next()) {
+    while (query.next()) {
         result.push_back({
-            q.value(0).toLongLong(),
-            q.value(1).toString().toStdString(),
-            q.value(2).toString().toStdString(),
-            q.value(3).toBool()
+            query.value(0).toLongLong(),
+            query.value(1).toString().toStdString(),
+            query.value(2).toString().toStdString(),
+            query.value(3).toBool()
         });
     }
     return result;
 }
 
-std::vector<CalcItem> list_calc_items(Database& db) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "SELECT id,code,name,formula,role,stage,priority,taxable,"
-        "included_in_contrib_base,reduces_income_tax_base,rounding_policy "
+std::vector<CalcItem> list_calc_items(
+    Database& database) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,code,name,formula,role,stage,"
+        "priority,taxable,included_in_contrib_base,"
+        "reduces_income_tax_base,rounding_policy "
         "FROM CalcItem ORDER BY id");
-    check(q);
+    check(query);
 
     std::vector<CalcItem> result;
-    while (q.next()) {
+    while (query.next()) {
         CalcItem item;
-        item.id = q.value(0).toLongLong();
-        item.code = q.value(1).toString().toStdString();
-        item.name = q.value(2).toString().toStdString();
-        item.formula = q.value(3).toString().toStdString();
-        item.role = static_cast<CalcRole>(q.value(4).toInt());
-        item.stage = q.value(5).toInt();
-        item.priority = q.value(6).toInt();
-        item.taxable = q.value(7).toBool();
-        item.included_in_contrib_base = q.value(8).toBool();
-        item.reduces_income_tax_base = q.value(9).toBool();
+        item.id = query.value(0).toLongLong();
+        item.code =
+            query.value(1).toString().toStdString();
+        item.name =
+            query.value(2).toString().toStdString();
+        item.formula =
+            query.value(3).toString().toStdString();
+        item.role =
+            static_cast<CalcRole>(
+                query.value(4).toInt());
+        item.stage = query.value(5).toInt();
+        item.priority = query.value(6).toInt();
+        item.taxable = query.value(7).toBool();
+        item.included_in_contrib_base =
+            query.value(8).toBool();
+        item.reduces_income_tax_base =
+            query.value(9).toBool();
         item.rounding_policy =
-            static_cast<RoundingPolicy>(q.value(10).toInt());
+            static_cast<RoundingPolicy>(
+                query.value(10).toInt());
         result.push_back(item);
     }
     return result;
 }
 
-std::vector<PayrollPreset> list_payroll_presets(Database& db) {
-    QSqlQuery q(db.sql());
-    q.prepare("SELECT id,code,name FROM PayrollPreset ORDER BY id");
-    check(q);
+std::vector<PayrollPreset> list_payroll_presets(
+    Database& database) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,code,name "
+        "FROM PayrollPreset ORDER BY id");
+    check(query);
 
     std::vector<PayrollPreset> result;
-    while (q.next()) {
+    while (query.next()) {
         PayrollPreset preset{
-            q.value(0).toLongLong(),
-            q.value(1).toString().toStdString(),
-            q.value(2).toString().toStdString(),
+            query.value(0).toLongLong(),
+            query.value(1).toString().toStdString(),
+            query.value(2).toString().toStdString(),
             {}
         };
 
-        QSqlQuery items(db.sql());
+        QSqlQuery items(database.sql());
         items.prepare(
-            "SELECT calc_item_id FROM PayrollPresetItem "
+            "SELECT calc_item_id "
+            "FROM PayrollPresetItem "
             "WHERE preset_id=? ORDER BY calc_item_id");
         items.addBindValue(preset.id);
         check(items);
 
         while (items.next()) {
-            preset.calc_item_ids.push_back(items.value(0).toLongLong());
+            preset.calc_item_ids.push_back(
+                items.value(0).toLongLong());
         }
-
         result.push_back(preset);
     }
     return result;
 }
 
 CalcInput build_calc_input(
-    Database& db, int64_t org_id, int32_t year, int32_t month) {
+    Database& database,
+    int64_t org_id,
+    int32_t year,
+    int32_t month) {
     CalcInput result;
     result.period.date_from = Date(year, month, 1);
-    result.period.date_to =
-        Date(year, month, Date::days_in_month(year, month));
+    result.period.date_to = Date(
+        year,
+        month,
+        Date::days_in_month(year, month));
 
     const std::vector<Employee> employees =
-        list_employees(db, org_id);
+        list_employees(database, org_id);
 
     for (const Employee& employee : employees) {
-        result.employees.push_back(employee_slice_from(employee));
+        result.employees.push_back(
+            employee_slice_from(employee));
     }
 
-    result.work_schedules = list_work_schedules(db);
-    result.payroll_presets = list_payroll_presets(db);
-    result.calc_items = list_calc_items(db);
-    result.absence_kinds = list_absence_kinds(db);
+    result.work_schedules =
+        list_work_schedules(database);
+    result.payroll_presets =
+        list_payroll_presets(database);
+    result.calc_items =
+        list_calc_items(database);
+    result.absence_kinds =
+        list_absence_kinds(database);
 
-    const Date end = result.period.date_to;
+    QSqlQuery termination_reasons(database.sql());
+    termination_reasons.prepare(
+        "SELECT id,code,name "
+        "FROM TerminationReason ORDER BY id");
+    check(termination_reasons);
+
+    while (termination_reasons.next()) {
+        result.termination_reasons.push_back({
+            termination_reasons.value(0).toLongLong(),
+            termination_reasons.value(1)
+                .toString().toStdString(),
+            termination_reasons.value(2)
+                .toString().toStdString()
+        });
+    }
 
     for (const Employee& employee : employees) {
-        for (const EmploymentEvent& event :
-             list_employment_events(db, employee.id)) {
-            if (event.date <= end) {
+        const std::vector<EmploymentEvent> events =
+            list_employment_events(database, employee.id);
+
+        for (const EmploymentEvent& event : events) {
+            if (event.date <= result.period.date_to) {
                 result.employment_events.push_back(event);
             }
         }
 
         const std::vector<TimeFact> facts =
             list_time_facts(
-                db,
+                database,
                 employee.id,
                 result.period.date_from,
                 result.period.date_to);
 
         result.time_facts.insert(
-            result.time_facts.end(), facts.begin(), facts.end());
+            result.time_facts.end(),
+            facts.begin(),
+            facts.end());
+
+        QSqlQuery output_facts(database.sql());
+        output_facts.prepare(
+            "SELECT employee_id,fact_date,code,"
+            "value_numerator,value_denominator "
+            "FROM OutputFact WHERE employee_id=? "
+            "AND fact_date>=? AND fact_date<=? "
+            "ORDER BY fact_date,id");
+        output_facts.addBindValue(employee.id);
+        output_facts.addBindValue(
+            result.period.date_from.ordinal());
+        output_facts.addBindValue(
+            result.period.date_to.ordinal());
+        check(output_facts);
+
+        while (output_facts.next()) {
+            result.output_facts.push_back({
+                output_facts.value(0).toLongLong(),
+                Date::from_ordinal(
+                    output_facts.value(1).toInt()),
+                output_facts.value(2)
+                    .toString().toStdString(),
+                Rational(
+                    output_facts.value(3).toLongLong(),
+                    output_facts.value(4).toLongLong())
+            });
+        }
 
         const auto schedule = std::find_if(
             result.work_schedules.begin(),
             result.work_schedules.end(),
             [&](const WorkSchedule& value) {
-                return value.id == employee.work_schedule_id;
+                return value.id ==
+                    employee.work_schedule_id;
             });
 
         if (schedule != result.work_schedules.end()) {
             const std::vector<NormDay> days =
-                generate_norm_calendar(*schedule, year, month);
+                generate_norm_calendar(
+                    *schedule,
+                    year,
+                    month);
             result.norm_days.insert(
-                result.norm_days.end(), days.begin(), days.end());
+                result.norm_days.end(),
+                days.begin(),
+                days.end());
         }
     }
 
     return result;
 }
 
-void persist_calculation(Database& db, const CalcOutput& output) {
-    db.transaction();
+void persist_calculation(
+    Database& database,
+    const CalcOutput& output) {
+    database.transaction();
 
     try {
-        QSqlQuery period(db.sql());
+        QSqlQuery period(database.sql());
         period.prepare(
-            "INSERT INTO PayrollPeriod(date_from,date_to,status)"
-            " VALUES(?,?,?)");
-        period.addBindValue(output.input_snapshot.period.date_from.ordinal());
-        period.addBindValue(output.input_snapshot.period.date_to.ordinal());
+            "INSERT INTO PayrollPeriod("
+            "date_from,date_to,status) VALUES(?,?,?)");
         period.addBindValue(
-            static_cast<int>(output.input_snapshot.period.status));
+            output.input_snapshot.period
+                .date_from.ordinal());
+        period.addBindValue(
+            output.input_snapshot.period
+                .date_to.ordinal());
+        period.addBindValue(
+            static_cast<int>(
+                output.input_snapshot.period.status));
         check(period);
         const int64_t period_id = id(period);
 
-        for (const Calculation& value : output.calculations) {
-            QSqlQuery calculation(db.sql());
+        for (const Calculation& value :
+             output.calculations) {
+            QSqlQuery calculation(database.sql());
             calculation.prepare(
                 "INSERT INTO Calculation("
-                "employee_id,payroll_period_id,status,incomplete_reasons,"
-                "total_accrual_cents,total_pre_tax_deduction_cents,"
-                "income_tax_cents,total_employer_contribution_cents,"
-                "total_post_tax_deduction_cents,net_amount_cents,"
-                "engine_version,input_snapshot)"
+                "employee_id,payroll_period_id,status,"
+                "incomplete_reasons,total_accrual_cents,"
+                "total_pre_tax_deduction_cents,"
+                "income_tax_cents,"
+                "total_employer_contribution_cents,"
+                "total_post_tax_deduction_cents,"
+                "net_amount_cents,engine_version,"
+                "input_snapshot)"
                 " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
 
             QJsonArray reasons;
-            for (const std::string& reason : value.incomplete_reasons) {
-                reasons.append(QString::fromStdString(reason));
+            for (const std::string& reason :
+                 value.incomplete_reasons) {
+                reasons.append(
+                    QString::fromStdString(reason));
             }
 
             calculation.addBindValue(value.employee_id);
             calculation.addBindValue(period_id);
-            calculation.addBindValue(static_cast<int>(value.status));
+            calculation.addBindValue(
+                static_cast<int>(value.status));
             calculation.addBindValue(
                 QString::fromUtf8(
-                    QJsonDocument(reasons).toJson(QJsonDocument::Compact)));
-            calculation.addBindValue(value.total_accrual.cents);
-            calculation.addBindValue(value.total_pre_tax_deduction.cents);
-            calculation.addBindValue(value.income_tax.cents);
-            calculation.addBindValue(value.total_employer_contribution.cents);
-            calculation.addBindValue(value.total_post_tax_deduction.cents);
-            calculation.addBindValue(value.net_amount.cents);
+                    QJsonDocument(reasons).toJson(
+                        QJsonDocument::Compact)));
             calculation.addBindValue(
-                QString::fromStdString(value.engine_version));
-
-            if (value.input_snapshot.has_value()) {
-                calculation.addBindValue(
-                    QString::fromStdString(*value.input_snapshot));
-            } else {
-                calculation.addBindValue(QVariant());
-            }
-
+                value.total_accrual.cents);
+            calculation.addBindValue(
+                value.total_pre_tax_deduction.cents);
+            calculation.addBindValue(
+                value.income_tax.cents);
+            calculation.addBindValue(
+                value.total_employer_contribution.cents);
+            calculation.addBindValue(
+                value.total_post_tax_deduction.cents);
+            calculation.addBindValue(
+                value.net_amount.cents);
+            calculation.addBindValue(
+                QString::fromStdString(
+                    value.engine_version));
+            calculation.addBindValue(
+                value.input_snapshot.has_value()
+                    ? QVariant(QString::fromStdString(
+                        *value.input_snapshot))
+                    : QVariant());
             check(calculation);
-            const int64_t calculation_id = id(calculation);
 
-            for (const CalculationLine& line : value.lines) {
-                QSqlQuery item(db.sql());
+            const int64_t calculation_id =
+                id(calculation);
+
+            for (const CalculationLine& line :
+                 value.lines) {
+                QSqlQuery item(database.sql());
                 item.prepare(
                     "INSERT INTO CalculationLine("
-                    "calculation_id,calc_item_id,calc_item_code,role,stage,"
-                    "priority,amount_cents,formula_snapshot,rounding_policy)"
+                    "calculation_id,calc_item_id,"
+                    "calc_item_code,role,stage,priority,"
+                    "amount_cents,formula_snapshot,"
+                    "rounding_policy)"
                     " VALUES(?,?,?,?,?,?,?,?,?)");
                 item.addBindValue(calculation_id);
                 item.addBindValue(line.calc_item_id);
                 item.addBindValue(
-                    QString::fromStdString(line.calc_item_code));
-                item.addBindValue(static_cast<int>(line.role));
+                    QString::fromStdString(
+                        line.calc_item_code));
+                item.addBindValue(
+                    static_cast<int>(line.role));
                 item.addBindValue(line.stage);
                 item.addBindValue(line.priority);
                 item.addBindValue(line.amount.cents);
                 item.addBindValue(
-                    QString::fromStdString(line.formula_snapshot));
-                item.addBindValue(static_cast<int>(line.rounding_policy));
+                    QString::fromStdString(
+                        line.formula_snapshot));
+                item.addBindValue(
+                    static_cast<int>(
+                        line.rounding_policy));
                 check(item);
             }
         }
 
-        db.commit();
+        database.commit();
     } catch (...) {
-        db.rollback();
+        database.rollback();
         throw;
     }
 }
 
 std::vector<CalculationLine> read_calculation_lines(
-    Database& db, int64_t calculation_id) {
-    QSqlQuery q(db.sql());
-    q.prepare(
-        "SELECT calc_item_id,calc_item_code,role,stage,priority,"
-        "amount_cents,formula_snapshot,rounding_policy "
-        "FROM CalculationLine WHERE calculation_id=? ORDER BY id");
-    q.addBindValue(calculation_id);
-    check(q);
+    Database& database,
+    int64_t calculation_id) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT calc_item_id,calc_item_code,role,"
+        "stage,priority,amount_cents,"
+        "formula_snapshot,rounding_policy "
+        "FROM CalculationLine "
+        "WHERE calculation_id=? ORDER BY id");
+    query.addBindValue(calculation_id);
+    check(query);
 
     std::vector<CalculationLine> result;
-    while (q.next()) {
+    while (query.next()) {
         CalculationLine line;
-        line.calc_item_id = q.value(0).toLongLong();
-        line.calc_item_code = q.value(1).toString().toStdString();
-        line.role = static_cast<CalcRole>(q.value(2).toInt());
-        line.stage = q.value(3).toInt();
-        line.priority = q.value(4).toInt();
-        line.amount = Money(q.value(5).toLongLong());
-        line.formula_snapshot = q.value(6).toString().toStdString();
+        line.calc_item_id =
+            query.value(0).toLongLong();
+        line.calc_item_code =
+            query.value(1).toString().toStdString();
+        line.role =
+            static_cast<CalcRole>(
+                query.value(2).toInt());
+        line.stage = query.value(3).toInt();
+        line.priority = query.value(4).toInt();
+        line.amount =
+            Money(query.value(5).toLongLong());
+        line.formula_snapshot =
+            query.value(6).toString().toStdString();
         line.rounding_policy =
-            static_cast<RoundingPolicy>(q.value(7).toInt());
+            static_cast<RoundingPolicy>(
+                query.value(7).toInt());
         result.push_back(line);
     }
     return result;

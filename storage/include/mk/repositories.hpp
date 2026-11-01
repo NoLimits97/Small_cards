@@ -37,13 +37,16 @@ std::vector<Employee> list_employees(Database&, int64_t org_id);
 
 int64_t create_employment_event(Database&, const EmploymentEvent&);
 std::optional<EmploymentEvent> read_employment_event(Database&, int64_t);
-void update_employment_event(Database&, const EmploymentEvent&);
+void update_employment_event(
+    Database&,
+    int64_t id,
+    const EmploymentEvent&);
 void delete_employment_event(Database&, int64_t);
 std::vector<EmploymentEvent> list_employment_events(Database&, int64_t);
 
 int64_t create_time_fact(Database&, const TimeFact&);
 std::optional<TimeFact> read_time_fact(Database&, int64_t);
-void update_time_fact(Database&, const TimeFact&);
+void update_time_fact(Database&, int64_t id, const TimeFact&);
 void delete_time_fact(Database&, int64_t);
 std::vector<TimeFact> list_time_facts(
     Database&, int64_t employee_id, Date from, Date to);
