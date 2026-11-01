@@ -95,10 +95,12 @@ public:
             if (position_ < source_.size() && source_[position_] == '.') {
                 ++position_;
                 const std::size_t fraction_start = position_;
+
                 while (position_ < source_.size() &&
                        is_digit(source_[position_])) {
                     ++position_;
                 }
+
                 if (position_ == fraction_start) {
                     syntax_error(
                         position_,
@@ -114,10 +116,12 @@ public:
 
         if (is_identifier_start(character)) {
             ++position_;
+
             while (position_ < source_.size() &&
                    is_identifier_character(source_[position_])) {
                 ++position_;
             }
+
             return {
                 TokenKind::identifier,
                 source_.substr(start, position_ - start),
@@ -125,6 +129,7 @@ public:
         }
 
         ++position_;
+
         switch (character) {
         case '+':
             return {TokenKind::plus, {}, start};
@@ -181,11 +186,13 @@ private:
     void skip_spaces() {
         while (position_ < source_.size()) {
             const char character = source_[position_];
+
             if (character != ' ' && character != '\t' &&
                 character != '\n' && character != '\r' &&
                 character != '\f' && character != '\v') {
                 break;
             }
+
             ++position_;
         }
     }
@@ -205,40 +212,51 @@ uint64_t parse_unsigned_digits(
     for (std::size_t index = begin; index < end; ++index) {
         const uint64_t digit =
             static_cast<uint64_t>(text[index] - '0');
+
         if (result > (limit - digit) / 10U) {
             throw CalcError("literal overflow");
         }
+
         result = result * 10U + digit;
     }
+
     return result;
 }
 
 uint64_t checked_scale_multiply(uint64_t value, uint64_t factor) {
     const uint64_t limit =
         static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+
     if (value > limit / factor) {
         throw CalcError("literal overflow");
     }
+
     return value * factor;
 }
 
 Rational parse_number(const std::string& text) {
     const std::size_t dot = text.find('.');
+
     if (dot == std::string::npos) {
         return Rational(static_cast<int64_t>(
             parse_unsigned_digits(text, 0, text.size())));
     }
 
-    std::string digits = text.substr(0, dot) + text.substr(dot + 1);
+    std::string digits =
+        text.substr(0, dot) + text.substr(dot + 1);
     std::size_t fraction_digits = text.size() - dot - 1;
 
-    const std::size_t first_nonzero = digits.find_first_not_of('0');
+    const std::size_t first_nonzero =
+        digits.find_first_not_of('0');
+
     if (first_nonzero == std::string::npos) {
         return Rational{};
     }
+
     digits.erase(0, first_nonzero);
 
-    while (fraction_digits > 0 && !digits.empty() &&
+    while (fraction_digits > 0 &&
+           !digits.empty() &&
            digits.back() == '0') {
         digits.pop_back();
         --fraction_digits;
@@ -248,23 +266,29 @@ Rational parse_number(const std::string& text) {
         return Rational{};
     }
 
-    uint64_t numerator = parse_unsigned_digits(0 + digits, 0, digits.size());
+    uint64_t numerator =
+        parse_unsigned_digits(digits, 0, digits.size());
 
-    while (fraction_digits > 0 && numerator % 2U == 0U) {
+    std::size_t twos = fraction_digits;
+    std::size_t fives = fraction_digits;
+
+    while (twos > 0 && numerator % 2U == 0U) {
         numerator /= 2U;
-        --fraction_digits;
+        --twos;
     }
 
-    std::size_t five_reductions = 0;
-    while (five_reductions < fraction_digits && numerator % 5U == 0U) {
+    while (fives > 0 && numerator % 5U == 0U) {
         numerator /= 5U;
-        ++five_reductions;
+        --fives;
     }
-    fraction_digits -= five_reductions;
 
     uint64_t denominator = 1;
-    for (std::size_t index = 0; index < fraction_digits; ++index) {
+
+    for (std::size_t index = 0; index < twos; ++index) {
         denominator = checked_scale_multiply(denominator, 2U);
+    }
+
+    for (std::size_t index = 0; index < fives; ++index) {
         denominator = checked_scale_multiply(denominator, 5U);
     }
 
@@ -290,14 +314,17 @@ private:
 
 class VariableNode final : public FormulaNode {
 public:
-    explicit VariableNode(std::string name) : name_(std::move(name)) {}
+    explicit VariableNode(std::string name)
+        : name_(std::move(name)) {}
 
     Rational evaluate(
         const std::map<std::string, Rational>& context) const override {
         const auto found = context.find(name_);
+
         if (found == context.end()) {
             throw CalcError("unknown variable: " + name_);
         }
+
         return found->second;
     }
 
@@ -320,11 +347,13 @@ public:
     UnaryNode(
         UnaryOperator operation,
         std::unique_ptr<FormulaNode> operand)
-        : operation_(operation), operand_(std::move(operand)) {}
+        : operation_(operation),
+          operand_(std::move(operand)) {}
 
     Rational evaluate(
         const std::map<std::string, Rational>& context) const override {
         const Rational value = operand_->evaluate(context);
+
         switch (operation_) {
         case UnaryOperator::plus:
             return value;
@@ -333,6 +362,7 @@ public:
         case UnaryOperator::logical_not:
             return value == Rational{} ? Rational{1} : Rational{};
         }
+
         throw CalcError("invalid unary operator");
     }
 
@@ -379,6 +409,7 @@ public:
             left == Rational{}) {
             return Rational{};
         }
+
         if (operation_ == BinaryOperator::logical_or &&
             left != Rational{}) {
             return Rational{1};
@@ -392,17 +423,23 @@ public:
         case BinaryOperator::divide:
             return left / right;
         case BinaryOperator::modulo:
-            if (left.denominator() != 1 || right.denominator() != 1) {
+            if (left.denominator() != 1 ||
+                right.denominator() != 1) {
                 throw CalcError("modulo requires integer operands");
             }
+
             if (right.numerator() == 0) {
                 throw CalcError("division by zero");
             }
-            if (left.numerator() == std::numeric_limits<int64_t>::min() &&
+
+            if (left.numerator() ==
+                    std::numeric_limits<int64_t>::min() &&
                 right.numerator() == -1) {
                 return Rational{};
             }
-            return Rational(left.numerator() % right.numerator());
+
+            return Rational(
+                left.numerator() % right.numerator());
         case BinaryOperator::add:
             return left + right;
         case BinaryOperator::subtract:
@@ -424,6 +461,7 @@ public:
         case BinaryOperator::logical_or:
             return right == Rational{} ? Rational{} : Rational{1};
         }
+
         throw CalcError("invalid binary operator");
     }
 
@@ -449,29 +487,46 @@ public:
     Rational evaluate(
         const std::map<std::string, Rational>& context) const override {
         if (name_ == "if") {
-            const Rational condition = arguments_[0]->evaluate(context);
-            return condition != Rational{}
-                ? arguments_[1]->evaluate(context)
-                : arguments_[2]->evaluate(context);
+            const Rational condition =
+                arguments_[0]->evaluate(context);
+
+            if (condition != Rational{}) {
+                return arguments_[1]->evaluate(context);
+            }
+
+            return arguments_[2]->evaluate(context);
         }
 
         if (name_ == "min") {
-            const Rational first = arguments_[0]->evaluate(context);
-            const Rational second = arguments_[1]->evaluate(context);
+            const Rational first =
+                arguments_[0]->evaluate(context);
+            const Rational second =
+                arguments_[1]->evaluate(context);
+
             return first < second ? first : second;
         }
+
         if (name_ == "max") {
-            const Rational first = arguments_[0]->evaluate(context);
-            const Rational second = arguments_[1]->evaluate(context);
+            const Rational first =
+                arguments_[0]->evaluate(context);
+            const Rational second =
+                arguments_[1]->evaluate(context);
+
             return first > second ? first : second;
         }
+
         if (name_ == "abs") {
-            const Rational value = arguments_[0]->evaluate(context);
+            const Rational value =
+                arguments_[0]->evaluate(context);
+
             return value < Rational{} ? -value : value;
         }
+
         if (name_ == "round") {
             return Rational(
-                arguments_[0]->evaluate(context).round_half_up_to_int64());
+                arguments_[0]
+                    ->evaluate(context)
+                    .round_half_up_to_int64());
         }
 
         throw CalcError("unknown function: " + name_);
@@ -490,7 +545,8 @@ private:
 
 class Parser {
 public:
-    explicit Parser(const std::string& source) : lexer_(source) {
+    explicit Parser(const std::string& source)
+        : lexer_(source) {
         current_ = lexer_.next();
     }
 
@@ -500,9 +556,11 @@ public:
         }
 
         std::unique_ptr<FormulaNode> result = parse_or();
+
         if (current_.kind != TokenKind::end) {
             syntax_error(current_.position, "unexpected token");
         }
+
         return result;
     }
 
@@ -511,37 +569,46 @@ private:
         if (current_.kind != kind) {
             syntax_error(current_.position, "unexpected token");
         }
+
         current_ = lexer_.next();
     }
 
     std::unique_ptr<FormulaNode> parse_or() {
         auto result = parse_and();
+
         while (current_.kind == TokenKind::pipe) {
             consume(TokenKind::pipe);
+
             result = std::make_unique<BinaryNode>(
                 BinaryOperator::logical_or,
                 std::move(result),
                 parse_and());
         }
+
         return result;
     }
 
     std::unique_ptr<FormulaNode> parse_and() {
         auto result = parse_comparison();
+
         while (current_.kind == TokenKind::ampersand) {
             consume(TokenKind::ampersand);
+
             result = std::make_unique<BinaryNode>(
                 BinaryOperator::logical_and,
                 std::move(result),
                 parse_comparison());
         }
+
         return result;
     }
 
     std::unique_ptr<FormulaNode> parse_comparison() {
         auto result = parse_additive();
+
         for (;;) {
             BinaryOperator operation;
+
             switch (current_.kind) {
             case TokenKind::greater:
                 operation = BinaryOperator::greater;
@@ -564,7 +631,9 @@ private:
             default:
                 return result;
             }
+
             consume(current_.kind);
+
             result = std::make_unique<BinaryNode>(
                 operation,
                 std::move(result),
@@ -574,10 +643,12 @@ private:
 
     std::unique_ptr<FormulaNode> parse_additive() {
         auto result = parse_multiplicative();
+
         while (current_.kind == TokenKind::plus ||
                current_.kind == TokenKind::minus) {
             const TokenKind kind = current_.kind;
             consume(kind);
+
             result = std::make_unique<BinaryNode>(
                 kind == TokenKind::plus
                     ? BinaryOperator::add
@@ -585,27 +656,33 @@ private:
                 std::move(result),
                 parse_multiplicative());
         }
+
         return result;
     }
 
     std::unique_ptr<FormulaNode> parse_multiplicative() {
         auto result = parse_unary();
+
         while (current_.kind == TokenKind::star ||
                current_.kind == TokenKind::slash ||
                current_.kind == TokenKind::percent) {
             const TokenKind kind = current_.kind;
             consume(kind);
+
             BinaryOperator operation = BinaryOperator::multiply;
+
             if (kind == TokenKind::slash) {
                 operation = BinaryOperator::divide;
             } else if (kind == TokenKind::percent) {
                 operation = BinaryOperator::modulo;
             }
+
             result = std::make_unique<BinaryNode>(
                 operation,
                 std::move(result),
                 parse_unary());
         }
+
         return result;
     }
 
@@ -615,6 +692,7 @@ private:
             current_.kind == TokenKind::bang) {
             const TokenKind kind = current_.kind;
             consume(kind);
+
             return std::make_unique<UnaryNode>(
                 kind == TokenKind::plus
                     ? UnaryOperator::plus
@@ -623,6 +701,7 @@ private:
                         : UnaryOperator::logical_not,
                 parse_unary());
         }
+
         return parse_primary();
     }
 
@@ -630,12 +709,15 @@ private:
         if (current_.kind == TokenKind::number) {
             const std::string text = current_.text;
             consume(TokenKind::number);
-            return std::make_unique<LiteralNode>(parse_number(text));
+
+            return std::make_unique<LiteralNode>(
+                parse_number(text));
         }
 
         if (current_.kind == TokenKind::identifier) {
             const std::string name = current_.text;
             const std::size_t name_position = current_.position;
+
             consume(TokenKind::identifier);
 
             if (current_.kind != TokenKind::left_parenthesis) {
@@ -643,13 +725,17 @@ private:
             }
 
             consume(TokenKind::left_parenthesis);
+
             std::vector<std::unique_ptr<FormulaNode>> arguments;
+
             if (current_.kind != TokenKind::right_parenthesis) {
                 for (;;) {
                     arguments.push_back(parse_or());
+
                     if (current_.kind != TokenKind::comma) {
                         break;
                     }
+
                     consume(TokenKind::comma);
                 }
             }
@@ -657,6 +743,7 @@ private:
             if (current_.kind != TokenKind::right_parenthesis) {
                 syntax_error(current_.position, "expected ')'");
             }
+
             consume(TokenKind::right_parenthesis);
 
             const std::size_t expected =
@@ -665,8 +752,11 @@ private:
                 name == "if" ? 3 : 0;
 
             if (expected == 0) {
-                syntax_error(name_position, "unknown function: " + name);
+                syntax_error(
+                    name_position,
+                    "unknown function: " + name);
             }
+
             if (arguments.size() != expected) {
                 syntax_error(
                     name_position,
@@ -680,10 +770,13 @@ private:
 
         if (current_.kind == TokenKind::left_parenthesis) {
             consume(TokenKind::left_parenthesis);
+
             auto result = parse_or();
+
             if (current_.kind != TokenKind::right_parenthesis) {
                 syntax_error(current_.position, "expected ')'");
             }
+
             consume(TokenKind::right_parenthesis);
             return result;
         }
@@ -718,6 +811,7 @@ Rational evaluate(
     if (!formula.root_) {
         throw CalcError("empty formula");
     }
+
     return formula.root_->evaluate(context);
 }
 
@@ -728,7 +822,10 @@ std::vector<std::string> extract_variables(const Formula& formula) {
 
     std::set<std::string> names;
     formula.root_->collect_variables(names);
-    return std::vector<std::string>(names.begin(), names.end());
+
+    return std::vector<std::string>(
+        names.begin(),
+        names.end());
 }
 
 }
