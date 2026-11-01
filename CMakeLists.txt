@@ -26,6 +26,7 @@ add_executable(core_tests
     core/tests/main.cpp
     core/tests/types_tests.cpp
     core/tests/formula_tests.cpp
+    core/tests/model_tests.cpp
 )
 
 target_include_directories(core_tests PRIVATE
