@@ -1,5 +1,6 @@
 #include "main_window.hpp"
 
+#include "money_formatter.hpp"
 #include "mk/org_details.hpp"
 #include "mk/repositories.hpp"
 
@@ -39,6 +40,179 @@
 
 namespace mk::gui {
 namespace {
+
+bool create_employee_dialog(
+    QWidget* parent,
+    Database& database,
+    int64_t org_id,
+    int64_t& created_id) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle(QStringLiteral("Добавить сотрудника"));
+    auto* layout = new QVBoxLayout(&dialog);
+    auto* form = new QFormLayout;
+
+    auto* number = new QLineEdit(&dialog);
+    auto* full_name = new QLineEdit(&dialog);
+    form->addRow(QStringLiteral("Табельный номер:"), number);
+    form->addRow(QStringLiteral("ФИО:"), full_name);
+
+    auto* department = new QComboBox(&dialog);
+    auto* position = new QComboBox(&dialog);
+    auto* employment_kind = new QComboBox(&dialog);
+    auto* schedule = new QComboBox(&dialog);
+    auto* preset = new QComboBox(&dialog);
+    preset->addItem(QStringLiteral("Без набора"), QVariant());
+
+    try {
+        for (const Department& value : list_departments(database, org_id)) {
+            department->addItem(
+                QString::fromStdString(value.name),
+                QVariant::fromValue(static_cast<qlonglong>(value.id)));
+        }
+        for (const Position& value : list_positions(database)) {
+            position->addItem(
+                QString::fromStdString(value.name),
+                QVariant::fromValue(static_cast<qlonglong>(value.id)));
+        }
+        for (const EmploymentKind& value : list_employment_kinds(database)) {
+            employment_kind->addItem(
+                QString::fromStdString(value.name),
+                QVariant::fromValue(static_cast<qlonglong>(value.id)));
+        }
+        for (const WorkSchedule& value : list_work_schedules(database)) {
+            schedule->addItem(
+                QString::fromStdString(value.name),
+                QVariant::fromValue(static_cast<qlonglong>(value.id)));
+        }
+        for (const PayrollPreset& value : list_payroll_presets(database)) {
+            preset->addItem(
+                QString::fromStdString(value.name),
+                QVariant::fromValue(static_cast<qlonglong>(value.id)));
+        }
+    } catch (const std::exception& error) {
+        QMessageBox::critical(
+            &dialog,
+            QStringLiteral("Ошибка загрузки справочников"),
+            QString::fromUtf8(error.what()));
+        return false;
+    }
+
+    if (department->count() == 0 ||
+        position->count() == 0 ||
+        employment_kind->count() == 0 ||
+        schedule->count() == 0) {
+        QMessageBox::warning(
+            &dialog,
+            QStringLiteral("Добавить сотрудника"),
+            QStringLiteral(
+                "Для приёма нужны подразделение, должность, "
+                "вид занятости и график работы."));
+        return false;
+    }
+
+    form->addRow(QStringLiteral("Подразделение:"), department);
+    form->addRow(QStringLiteral("Должность:"), position);
+    form->addRow(QStringLiteral("Вид занятости:"), employment_kind);
+    form->addRow(QStringLiteral("График работы:"), schedule);
+    form->addRow(QStringLiteral("Набор начислений:"), preset);
+
+    auto* rate = new QLineEdit(&dialog);
+    rate->setPlaceholderText(QStringLiteral("0,00"));
+    form->addRow(QStringLiteral("Ставка:"), rate);
+
+    auto* rate_unit = new QComboBox(&dialog);
+    rate_unit->addItem(
+        QStringLiteral("В месяц"), static_cast<int>(RateUnit::Month));
+    rate_unit->addItem(
+        QStringLiteral("В день"), static_cast<int>(RateUnit::Day));
+    rate_unit->addItem(
+        QStringLiteral("В час"), static_cast<int>(RateUnit::Hour));
+    form->addRow(QStringLiteral("Единица ставки:"), rate_unit);
+
+    auto* hire_date = new QDateEdit(&dialog);
+    hire_date->setCalendarPopup(true);
+    hire_date->setDisplayFormat(QStringLiteral("dd.MM.yyyy"));
+    hire_date->setMinimumDate(QDate(1, 1, 1));
+    hire_date->setMaximumDate(QDate(9999, 12, 31));
+    hire_date->setDate(QDate::currentDate());
+    form->addRow(QStringLiteral("Дата приёма:"), hire_date);
+    layout->addLayout(form);
+
+    auto* buttons = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addWidget(buttons);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]() {
+        const QString trimmed_number = number->text().trimmed();
+        const QString trimmed_name = full_name->text().trimmed();
+        if (trimmed_number.isEmpty() || trimmed_name.isEmpty()) {
+            QMessageBox::warning(
+                &dialog,
+                QStringLiteral("Добавить сотрудника"),
+                QStringLiteral("Введите табельный номер и ФИО."));
+            return;
+        }
+
+        const MoneyParseResult parsed_rate = parse_money(rate->text());
+        if (!parsed_rate.value.has_value()) {
+            QMessageBox::warning(
+                &dialog, QStringLiteral("Ставка"), parsed_rate.error);
+            return;
+        }
+        if (parsed_rate.value->cents < 0) {
+            QMessageBox::warning(
+                &dialog,
+                QStringLiteral("Ставка"),
+                QStringLiteral("Ставка не может быть отрицательной."));
+            return;
+        }
+
+        Employee employee;
+        employee.personnel_number = trimmed_number.toStdString();
+        employee.full_name = trimmed_name.toStdString();
+        employee.org_id = org_id;
+        employee.department_id = department->currentData().toLongLong();
+        employee.position_id = position->currentData().toLongLong();
+        employee.employment_kind_id = employment_kind->currentData().toLongLong();
+        employee.work_schedule_id = schedule->currentData().toLongLong();
+        if (preset->currentIndex() > 0) {
+            employee.payroll_preset_id = preset->currentData().toLongLong();
+        }
+        employee.rate = *parsed_rate.value;
+        employee.rate_unit =
+            static_cast<RateUnit>(rate_unit->currentData().toInt());
+        const QDate date = hire_date->date();
+        employee.hire_date = Date(date.year(), date.month(), date.day());
+
+        EmploymentEvent hire;
+        hire.date = employee.hire_date;
+        hire.kind = EventKind::Hire;
+        hire.personnel_number = employee.personnel_number;
+        hire.full_name = employee.full_name;
+        hire.org_id = employee.org_id;
+        hire.department_id = employee.department_id;
+        hire.position_id = employee.position_id;
+        hire.employment_kind_id = employee.employment_kind_id;
+        hire.work_schedule_id = employee.work_schedule_id;
+        hire.payroll_preset_id = employee.payroll_preset_id;
+        hire.rate = employee.rate;
+        hire.rate_unit = employee.rate_unit;
+
+        try {
+            created_id = create_employee_with_hire_event(
+                database, employee, hire);
+            dialog.accept();
+        } catch (const std::exception& error) {
+            QMessageBox::critical(
+                &dialog,
+                QStringLiteral("Ошибка создания сотрудника"),
+                QString::fromUtf8(error.what()));
+        }
+    });
+    QObject::connect(
+        buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    return dialog.exec() == QDialog::Accepted;
+}
 
 bool edit_position_dialog(QWidget* parent, Position& position) {
     QDialog dialog(parent);
@@ -430,8 +604,11 @@ MainWindow::MainWindow(QWidget* parent)
     setup_columns(employees_table_, 1, true);
     employees_layout->addWidget(employees_table_);
     auto* employees_buttons = new QHBoxLayout;
+    add_employee_button_ =
+        new QPushButton(QStringLiteral("Добавить"), employees_tab);
     refresh_employees_button_ =
         new QPushButton(QStringLiteral("Обновить"), employees_tab);
+    employees_buttons->addWidget(add_employee_button_);
     employees_buttons->addWidget(refresh_employees_button_);
     employees_buttons->addStretch();
     employees_layout->addLayout(employees_buttons);
@@ -484,6 +661,8 @@ MainWindow::MainWindow(QWidget* parent)
             this, [this]() { remove_work_schedule(); });
     connect(refresh_work_schedules_button_, &QPushButton::clicked,
             this, [this]() { refresh_work_schedules(); });
+    connect(add_employee_button_, &QPushButton::clicked,
+            this, [this]() { add_employee(); });
     connect(refresh_employees_button_, &QPushButton::clicked,
             this, [this]() { refresh_employees(); });
 }
@@ -521,6 +700,7 @@ void MainWindow::update_reference_access() {
 void MainWindow::update_employee_access() {
     const bool enabled = database_open_ && selected_org_id_.has_value();
     employees_table_->setEnabled(enabled);
+    add_employee_button_->setEnabled(enabled);
     refresh_employees_button_->setEnabled(enabled);
 
     if (!enabled) {
@@ -588,6 +768,29 @@ void MainWindow::refresh_employees() {
             QStringLiteral("Ошибка загрузки сотрудников"),
             QStringLiteral("Не удалось загрузить список сотрудников.\n\n%1")
                 .arg(QString::fromUtf8(error.what())));
+    }
+}
+
+void MainWindow::add_employee() {
+    if (!database_open_ || !selected_org_id_.has_value()) {
+        return;
+    }
+
+    int64_t created_id = 0;
+    if (!create_employee_dialog(
+            this, database_, *selected_org_id_, created_id)) {
+        return;
+    }
+
+    refresh_employees();
+    for (int row = 0; row < employees_table_->rowCount(); ++row) {
+        const QTableWidgetItem* item = employees_table_->item(row, 0);
+        if (item != nullptr &&
+            item->data(Qt::UserRole).toLongLong() == created_id) {
+            employees_table_->selectRow(row);
+            employees_table_->scrollToItem(item);
+            break;
+        }
     }
 }
 
