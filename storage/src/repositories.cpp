@@ -9,6 +9,7 @@
 #include <QVariant>
 
 #include <algorithm>
+#include <functional>
 #include <stdexcept>
 
 namespace mk {
@@ -721,6 +722,208 @@ int64_t create_employee_with_hire_event(
     }
 }
 
+namespace {
+
+Employee require_active_employee(
+    Database& database,
+    int64_t org_id,
+    int64_t employee_id) {
+    const std::optional<Employee> employee =
+        read_employee(database, employee_id);
+    if (!employee.has_value() || employee->org_id != org_id) {
+        throw std::runtime_error("employee not found");
+    }
+    if (employee->termination_date.has_value()) {
+        throw std::runtime_error(
+            "operations are not allowed for a terminated employee");
+    }
+    return *employee;
+}
+
+void require_operation_date(
+    const Employee& employee,
+    const Date& date) {
+    if (date < employee.hire_date) {
+        throw std::invalid_argument(
+            "operation date cannot be earlier than the hire date");
+    }
+}
+
+EmploymentEvent snapshot_event(
+    const Employee& employee,
+    const Date& date,
+    EventKind kind) {
+    EmploymentEvent event;
+    event.employee_id = employee.id;
+    event.date = date;
+    event.kind = kind;
+    event.personnel_number = employee.personnel_number;
+    event.full_name = employee.full_name;
+    event.org_id = employee.org_id;
+    event.department_id = employee.department_id;
+    event.position_id = employee.position_id;
+    event.employment_kind_id = employee.employment_kind_id;
+    event.work_schedule_id = employee.work_schedule_id;
+    event.payroll_preset_id = employee.payroll_preset_id;
+    event.rate = employee.rate;
+    event.rate_unit = employee.rate_unit;
+    return event;
+}
+
+int64_t apply_employee_event(
+    Database& database,
+    int64_t org_id,
+    int64_t employee_id,
+    const Date& date,
+    EventKind kind,
+    const std::function<void(Employee&, EmploymentEvent&)>& change) {
+    database.transaction();
+    try {
+        Employee employee =
+            require_active_employee(database, org_id, employee_id);
+        require_operation_date(employee, date);
+
+        EmploymentEvent event =
+            snapshot_event(employee, date, kind);
+        change(employee, event);
+
+        update_employee(database, employee);
+        const int64_t event_id =
+            create_employment_event(database, event);
+        database.commit();
+        return event_id;
+    } catch (...) {
+        try {
+            database.rollback();
+        } catch (...) {
+        }
+        throw;
+    }
+}
+
+}
+
+void update_employee_identity(
+    Database& database,
+    int64_t org_id,
+    int64_t employee_id,
+    const std::string& personnel_number,
+    const std::string& full_name) {
+    if (personnel_number.empty() || full_name.empty()) {
+        throw std::invalid_argument(
+            "personnel number and full name must not be empty");
+    }
+
+    database.transaction();
+    try {
+        Employee employee =
+            require_active_employee(database, org_id, employee_id);
+        employee.personnel_number = personnel_number;
+        employee.full_name = full_name;
+        update_employee(database, employee);
+        database.commit();
+    } catch (...) {
+        try {
+            database.rollback();
+        } catch (...) {
+        }
+        throw;
+    }
+}
+
+int64_t transfer_employee(
+    Database& database,
+    int64_t org_id,
+    int64_t employee_id,
+    const Date& date,
+    int64_t department_id,
+    int64_t position_id,
+    int64_t employment_kind_id,
+    int64_t work_schedule_id,
+    std::optional<int64_t> payroll_preset_id) {
+    return apply_employee_event(
+        database,
+        org_id,
+        employee_id,
+        date,
+        EventKind::Transfer,
+        [&](Employee& employee, EmploymentEvent& event) {
+            employee.department_id = department_id;
+            employee.position_id = position_id;
+            employee.employment_kind_id = employment_kind_id;
+            employee.work_schedule_id = work_schedule_id;
+            employee.payroll_preset_id = payroll_preset_id;
+
+            event.department_id = department_id;
+            event.position_id = position_id;
+            event.employment_kind_id = employment_kind_id;
+            event.work_schedule_id = work_schedule_id;
+            event.payroll_preset_id = payroll_preset_id;
+        });
+}
+
+int64_t change_employee_rate(
+    Database& database,
+    int64_t org_id,
+    int64_t employee_id,
+    const Date& date,
+    Money rate,
+    RateUnit rate_unit) {
+    if (rate.cents < 0) {
+        throw std::invalid_argument("rate cannot be negative");
+    }
+
+    return apply_employee_event(
+        database,
+        org_id,
+        employee_id,
+        date,
+        EventKind::ChangeSalary,
+        [&](Employee& employee, EmploymentEvent& event) {
+            employee.rate = rate;
+            employee.rate_unit = rate_unit;
+            event.rate = rate;
+            event.rate_unit = rate_unit;
+        });
+}
+
+int64_t terminate_employee(
+    Database& database,
+    int64_t org_id,
+    int64_t employee_id,
+    const Date& date,
+    std::optional<int64_t> termination_reason_id) {
+    return apply_employee_event(
+        database,
+        org_id,
+        employee_id,
+        date,
+        EventKind::Termination,
+        [&](Employee& employee, EmploymentEvent& event) {
+            employee.termination_date = date;
+            event.termination_reason_id = termination_reason_id;
+        });
+}
+
+std::vector<TerminationReason> list_termination_reasons(
+    Database& database) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT id,code,name "
+        "FROM TerminationReason ORDER BY id");
+    check(query);
+
+    std::vector<TerminationReason> result;
+    while (query.next()) {
+        result.push_back({
+            query.value(0).toLongLong(),
+            text(query, 1).toStdString(),
+            text(query, 2).toStdString()
+        });
+    }
+    return result;
+}
+
 int64_t create_time_fact(
     Database& database,
     const TimeFact& value) {
@@ -927,21 +1130,8 @@ CalcInput build_calc_input(
     result.absence_kinds =
         list_absence_kinds(database);
 
-    QSqlQuery termination_reasons(database.sql());
-    termination_reasons.prepare(
-        "SELECT id,code,name "
-        "FROM TerminationReason ORDER BY id");
-    check(termination_reasons);
-
-    while (termination_reasons.next()) {
-        result.termination_reasons.push_back({
-            termination_reasons.value(0).toLongLong(),
-            termination_reasons.value(1)
-                .toString().toStdString(),
-            termination_reasons.value(2)
-                .toString().toStdString()
-        });
-    }
+    result.termination_reasons =
+        list_termination_reasons(database);
 
     for (const Employee& employee : employees) {
         const std::vector<EmploymentEvent> events =

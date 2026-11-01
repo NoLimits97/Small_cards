@@ -68,6 +68,20 @@ else()
     target_compile_options(mk_gui_money_formatter PRIVATE -Wall -Wextra -Werror)
 endif()
 
+add_library(mk_gui_format STATIC
+    gui/src/gui_format.cpp
+    gui/include/gui_format.hpp
+)
+
+target_include_directories(mk_gui_format PUBLIC gui/include)
+target_link_libraries(mk_gui_format PUBLIC mk_core Qt6::Core)
+
+if(MSVC)
+    target_compile_options(mk_gui_format PRIVATE /W4 /WX)
+else()
+    target_compile_options(mk_gui_format PRIVATE -Wall -Wextra -Werror)
+endif()
+
 add_executable(core_tests
     core/tests/main.cpp
     core/tests/types_tests.cpp
@@ -94,6 +108,7 @@ add_executable(storage_tests
     storage/tests/storage_tests.cpp
     storage/tests/org_details_tests.cpp
     storage/tests/employee_list_tests.cpp
+    storage/tests/employee_operations_tests.cpp
 )
 
 target_include_directories(storage_tests PRIVATE
@@ -112,10 +127,11 @@ endif()
 add_executable(gui_tests
     core/tests/main.cpp
     gui/tests/money_formatter_tests.cpp
+    gui/tests/gui_format_tests.cpp
 )
 
 target_include_directories(gui_tests PRIVATE core/tests)
-target_link_libraries(gui_tests PRIVATE mk_gui_money_formatter)
+target_link_libraries(gui_tests PRIVATE mk_gui_money_formatter mk_gui_format)
 
 if(MSVC)
     target_compile_options(gui_tests PRIVATE /W4 /WX)
@@ -132,7 +148,7 @@ add_executable(mk_app
 )
 
 target_include_directories(mk_app PRIVATE gui/include)
-target_link_libraries(mk_app PRIVATE mk_storage mk_core mk_gui_money_formatter Qt6::Widgets)
+target_link_libraries(mk_app PRIVATE mk_storage mk_core mk_gui_money_formatter mk_gui_format Qt6::Widgets)
 
 enable_testing()
 add_test(NAME core_tests COMMAND core_tests)

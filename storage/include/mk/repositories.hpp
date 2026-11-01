@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace mk {
@@ -52,6 +53,41 @@ int64_t create_employee_with_hire_event(
     Database&,
     const Employee&,
     const EmploymentEvent&);
+
+void update_employee_identity(
+    Database&,
+    int64_t org_id,
+    int64_t employee_id,
+    const std::string& personnel_number,
+    const std::string& full_name);
+
+int64_t transfer_employee(
+    Database&,
+    int64_t org_id,
+    int64_t employee_id,
+    const Date& date,
+    int64_t department_id,
+    int64_t position_id,
+    int64_t employment_kind_id,
+    int64_t work_schedule_id,
+    std::optional<int64_t> payroll_preset_id);
+
+int64_t change_employee_rate(
+    Database&,
+    int64_t org_id,
+    int64_t employee_id,
+    const Date& date,
+    Money rate,
+    RateUnit rate_unit);
+
+int64_t terminate_employee(
+    Database&,
+    int64_t org_id,
+    int64_t employee_id,
+    const Date& date,
+    std::optional<int64_t> termination_reason_id);
+
+std::vector<TerminationReason> list_termination_reasons(Database&);
 
 int64_t create_time_fact(Database&, const TimeFact&);
 std::optional<TimeFact> read_time_fact(Database&, int64_t);

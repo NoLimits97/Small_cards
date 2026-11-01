@@ -48,6 +48,8 @@ private:
     void update_employee_access();
     void refresh_employees();
     void add_employee();
+    void open_employee_card();
+    void select_employee_row(int64_t employee_id);
 
     Database database_;
     bool database_open_ = false;
@@ -79,6 +81,7 @@ private:
     QLabel* employees_status_label_ = nullptr;
     QTableWidget* employees_table_ = nullptr;
     QPushButton* add_employee_button_ = nullptr;
+    QPushButton* employee_card_button_ = nullptr;
     QPushButton* refresh_employees_button_ = nullptr;
 };
 
