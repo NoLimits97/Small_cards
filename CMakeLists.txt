@@ -11,6 +11,7 @@ add_library(mk_core STATIC
     core/src/formula.cpp
     core/src/calendar.cpp
     core/src/slicing.cpp
+    core/src/time_derive.cpp
 )
 
 target_include_directories(mk_core
@@ -31,6 +32,7 @@ add_executable(core_tests
     core/tests/model_tests.cpp
     core/tests/calendar_tests.cpp
     core/tests/slicing_tests.cpp
+    core/tests/time_derive_tests.cpp
 )
 
 target_include_directories(core_tests PRIVATE
