@@ -1,10 +1,29 @@
-#include "TZ_Project.h"
-#include <QtWidgets/QApplication>
+#include "main_window.hpp"
 
-int main(int argc, char *argv[])
-{
-    QApplication app(argc, argv);
-    TZ_Project window;
+#include <QApplication>
+#include <QStyle>
+
+#include <string_view>
+
+int main(int argc, char* argv[]) {
+    bool style_specified = false;
+    for (int index = 1; index < argc; ++index) {
+        const std::string_view argument(argv[index]);
+        if (argument == "-style" || argument.starts_with("-style=")) {
+            style_specified = true;
+            break;
+        }
+    }
+
+    QApplication application(argc, argv);
+    if (!style_specified) {
+        QApplication::setStyle(QStringLiteral("Fusion"));
+    }
+
+    mk::gui::MainWindow window;
+    window.setWindowTitle(
+        QStringLiteral("Малые кадры — стиль: %1")
+            .arg(application.style()->objectName()));
     window.show();
-    return app.exec();
+    return application.exec();
 }
