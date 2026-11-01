@@ -7,7 +7,8 @@
 
 namespace mk {
 
-std::vector<ValidationError> validate(const CalcInput& input);
+std::vector<ValidationError>
+validate(const CalcInput& input);
 
 CalcOutput calculate(const CalcInput& input);
 
