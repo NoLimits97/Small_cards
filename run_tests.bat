@@ -1,7 +1,24 @@
 @echo off
 setlocal
 cd /d "%~dp0" || exit /b 1
-cmake -S . -B build || exit /b 1
-cmake --build build --config Debug --target core_tests || exit /b 1
+
+where cmake >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: CMake not found. Start aider from Developer PowerShell.
+    exit /b 1
+)
+
+echo === Configure ===
+cmake -S . -B build
+if errorlevel 1 exit /b 1
+
+echo === Build ===
+cmake --build build --config Debug --target core_tests
+if errorlevel 1 exit /b 1
+
+echo === Tests ===
 ctest --test-dir build -C Debug --output-on-failure --no-tests=error
-exit /b %ERRORLEVEL%
+if errorlevel 1 exit /b 1
+
+echo === SUCCESS ===
+exit /b 0
