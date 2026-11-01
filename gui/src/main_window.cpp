@@ -246,7 +246,10 @@ MainWindow::MainWindow(QWidget* parent)
     resize(1000, 700);
 
     auto* tabs = new QTabWidget(this);
+    setCentralWidget(tabs);
+
     auto* organization_tab = new QWidget(tabs);
+    organization_tab->setAutoFillBackground(true);
     auto* layout = new QVBoxLayout(organization_tab);
 
     auto* database_buttons = new QHBoxLayout;
@@ -286,6 +289,7 @@ MainWindow::MainWindow(QWidget* parent)
     layout->addStretch();
 
     auto* references_tab = new QWidget(tabs);
+    references_tab->setAutoFillBackground(true);
     auto* references_layout = new QVBoxLayout(references_tab);
 
     auto* positions_group =
@@ -343,12 +347,23 @@ MainWindow::MainWindow(QWidget* parent)
     schedules_layout->addLayout(schedules_buttons);
     references_layout->addWidget(schedules_group);
 
+    auto* employees_tab = new QWidget(tabs);
+    employees_tab->setAutoFillBackground(true);
+    new QVBoxLayout(employees_tab);
+
+    auto* time_tab = new QWidget(tabs);
+    time_tab->setAutoFillBackground(true);
+    new QVBoxLayout(time_tab);
+
+    auto* calculation_tab = new QWidget(tabs);
+    calculation_tab->setAutoFillBackground(true);
+    new QVBoxLayout(calculation_tab);
+
     tabs->addTab(organization_tab, QStringLiteral("Организация"));
     tabs->addTab(references_tab, QStringLiteral("Справочники"));
-    tabs->addTab(new QWidget(tabs), QStringLiteral("Сотрудники"));
-    tabs->addTab(new QWidget(tabs), QStringLiteral("Табель"));
-    tabs->addTab(new QWidget(tabs), QStringLiteral("Расчёт"));
-    setCentralWidget(tabs);
+    tabs->addTab(employees_tab, QStringLiteral("Сотрудники"));
+    tabs->addTab(time_tab, QStringLiteral("Табель"));
+    tabs->addTab(calculation_tab, QStringLiteral("Расчёт"));
 
     clear_database_view();
 
