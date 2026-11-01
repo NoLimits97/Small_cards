@@ -108,12 +108,18 @@ std::map<std::string, int> dependency_levels(
         const std::string code = *ready.begin();
         ready.erase(ready.begin());
 
-        for (const std::string& dependent : dependents.at(code)) {
+        const auto dependents_it = dependents.find(code);
+        if (dependents_it == dependents.end()) {
+            continue;
+        }
+
+        for (const std::string& dependent : dependents_it->second) {
             levels[dependent] = std::max(
                 levels[dependent],
                 levels[code] + 1);
 
             --remaining_dependencies[dependent];
+
             if (remaining_dependencies[dependent] == 0) {
                 ready.insert(dependent);
             }
@@ -146,6 +152,7 @@ std::vector<std::string> validate_dependencies(
     }
 
     DependencyGraph graph;
+
     try {
         graph = build_graph(items, indexed);
     } catch (const CalcError& error) {
@@ -194,7 +201,12 @@ std::vector<std::string> validate_dependencies(
         ready.erase(ready.begin());
         ++processed;
 
-        for (const std::string& dependent : dependents.at(code)) {
+        const auto dependents_it = dependents.find(code);
+        if (dependents_it == dependents.end()) {
+            continue;
+        }
+
+        for (const std::string& dependent : dependents_it->second) {
             --remaining_dependencies[dependent];
 
             if (remaining_dependencies[dependent] == 0) {
