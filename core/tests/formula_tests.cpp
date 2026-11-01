@@ -109,8 +109,8 @@ TEST(formula_operators_and_functions) {
     REQUIRE_EQUAL(evaluate_formula("min(4, 2)"), Rational{2});
     REQUIRE_EQUAL(evaluate_formula("max(4, 2)"), Rational{4});
     REQUIRE_EQUAL(evaluate_formula("abs(-5)"), Rational{5});
-    REQUIRE_EQUAL(evaluate_formula("round(1.5"), Rational{2});
-    REQUIRE_EQUAL(evaluate_formula("round(-1.5"), Rational{-2});
+    REQUIRE_EQUAL(evaluate_formula("round(1.5)"), Rational{2});
+    REQUIRE_EQUAL(evaluate_formula("round(-1.5)"), Rational{-2});
 }
 
 TEST(formula_modulo_validation) {
