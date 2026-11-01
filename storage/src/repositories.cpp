@@ -9,6 +9,7 @@
 #include <QSqlQuery>
 #include <QVariant>
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace mk {
@@ -114,6 +115,22 @@ Employee employee_from(QSqlQuery& q) {
         result.termination_date = Date::from_ordinal(q.value(12).toInt());
     }
 
+    return result;
+}
+
+EmployeeSlice employee_slice_from(const Employee& employee) {
+    EmployeeSlice result;
+    result.employee_id = employee.id;
+    result.personnel_number = employee.personnel_number;
+    result.full_name = employee.full_name;
+    result.org_id = employee.org_id;
+    result.department_id = employee.department_id;
+    result.position_id = employee.position_id;
+    result.employment_kind_id = employee.employment_kind_id;
+    result.work_schedule_id = employee.work_schedule_id;
+    result.payroll_preset_id = employee.payroll_preset_id;
+    result.rate = employee.rate;
+    result.rate_unit = employee.rate_unit;
     return result;
 }
 
@@ -599,7 +616,6 @@ std::vector<TimeFact> list_time_facts(
 
 std::vector<AbsenceKind> list_absence_kinds(Database& db) {
     QSqlQuery q(db.sql());
-    check(q);
     q.prepare("SELECT id,code,name,paid FROM AbsenceKind ORDER BY id");
     check(q);
 
@@ -680,7 +696,13 @@ CalcInput build_calc_input(
     result.period.date_to =
         Date(year, month, Date::days_in_month(year, month));
 
-    result.employees = list_employees(db, org_id);
+    const std::vector<Employee> employees =
+        list_employees(db, org_id);
+
+    for (const Employee& employee : employees) {
+        result.employees.push_back(employee_slice_from(employee));
+    }
+
     result.work_schedules = list_work_schedules(db);
     result.payroll_presets = list_payroll_presets(db);
     result.calc_items = list_calc_items(db);
@@ -688,7 +710,7 @@ CalcInput build_calc_input(
 
     const Date end = result.period.date_to;
 
-    for (const Employee& employee : result.employees) {
+    for (const Employee& employee : employees) {
         for (const EmploymentEvent& event :
              list_employment_events(db, employee.id)) {
             if (event.date <= end) {
