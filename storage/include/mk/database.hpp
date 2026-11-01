@@ -15,6 +15,9 @@ public:
     Database(const Database&) = delete;
     Database& operator=(const Database&) = delete;
 
+    Database(Database&& other);
+    Database& operator=(Database&& other);
+
     void open(const QString& path);
     void create_new(const QString& path);
 

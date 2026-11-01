@@ -3,6 +3,7 @@
 #include "mk/repositories.hpp"
 
 #include <QCoreApplication>
+#include <QSqlQuery>
 #include <QTemporaryDir>
 
 #include <cstdio>
@@ -154,8 +155,9 @@ TEST(storage_persist_calculation_and_lines) {
     REQUIRE(query.exec("SELECT id FROM Calculation LIMIT 1"));
     REQUIRE(query.next());
 
+    const int64_t calculation_id = query.value(0).toLongLong();
     const auto lines =
-        mk::read_calculation_lines(database, query.value(0).toLongLong());
+        mk::read_calculation_lines(database, calculation_id);
 
     REQUIRE_EQUAL(lines.size(), std::size_t{1});
     REQUIRE_EQUAL(lines.front().amount, mk::Money(100000));

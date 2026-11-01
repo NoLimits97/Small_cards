@@ -6,6 +6,7 @@
 #include <QVariant>
 
 #include <stdexcept>
+#include <utility>
 
 namespace mk {
 namespace {
@@ -46,6 +47,29 @@ Database::Database() = default;
 
 Database::~Database() {
     close();
+}
+
+Database::Database(Database&& other)
+    : database_(other.database_),
+      connection_name_(std::move(other.connection_name_)) {
+    other.database_ = QSqlDatabase();
+    other.connection_name_.clear();
+}
+
+Database& Database::operator=(Database&& other) {
+    if (this == &other) {
+        return *this;
+    }
+
+    close();
+
+    database_ = other.database_;
+    connection_name_ = std::move(other.connection_name_);
+
+    other.database_ = QSqlDatabase();
+    other.connection_name_.clear();
+
+    return *this;
 }
 
 void Database::open(const QString& path) {
