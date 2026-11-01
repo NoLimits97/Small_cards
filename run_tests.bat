@@ -13,7 +13,7 @@ cmake -S . -B build
 if errorlevel 1 exit /b 1
 
 echo === Build ===
-cmake --build build --config Debug --target core_tests
+cmake --build build --config Debug --target core_tests storage_tests
 if errorlevel 1 exit /b 1
 
 echo === Tests ===
