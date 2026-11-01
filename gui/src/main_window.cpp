@@ -6,10 +6,13 @@
 #include <QAbstractItemView>
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDate>
 #include <QDateEdit>
+#include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -26,6 +29,8 @@
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QTextStream>
+#include <QTimer>
 #include <QVariant>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -36,6 +41,98 @@
 
 namespace mk::gui {
 namespace {
+
+QFile& diagnostic_file() {
+    static QFile file(
+        QCoreApplication::applicationDirPath() +
+        QStringLiteral("/m7_gui_debug.log"));
+    return file;
+}
+
+void flush_diagnostic() {
+    if (!diagnostic_file().flush()) {
+        throw std::runtime_error(
+            "cannot write m7_gui_debug.log: " +
+            diagnostic_file().errorString().toStdString());
+    }
+}
+
+void start_diagnostic() {
+    QFile& file = diagnostic_file();
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        throw std::runtime_error(
+            "cannot open m7_gui_debug.log: " +
+            file.errorString().toStdString());
+    }
+
+    QTextStream stream(&file);
+    stream << "applicationFilePath="
+           << QCoreApplication::applicationFilePath() << '\n';
+    stream << "started="
+           << QDateTime::currentDateTime().toString(Qt::ISODateWithMs)
+           << '\n';
+    flush_diagnostic();
+}
+
+QString widget_address(const QWidget* widget) {
+    if (widget == nullptr) {
+        return QStringLiteral("null");
+    }
+    return QStringLiteral("0x%1").arg(
+        QString::number(reinterpret_cast<quintptr>(widget), 16));
+}
+
+void log_widget(QTextStream& stream, const QString& label, QWidget* widget) {
+    stream << label;
+    if (widget == nullptr) {
+        stream << " = null\n";
+        return;
+    }
+
+    QWidget* parent = widget->parentWidget();
+    const QRect rect = widget->geometry();
+    stream << " objectName=" << widget->objectName()
+           << " address=" << widget_address(widget)
+           << " isVisible=" << widget->isVisible()
+           << " isHidden=" << widget->isHidden()
+           << " geometry=(" << rect.x() << ',' << rect.y()
+           << ',' << rect.width() << ',' << rect.height() << ')'
+           << " parentWidget=" << widget_address(parent)
+           << " parentObjectName="
+           << (parent != nullptr ? parent->objectName()
+                                 : QStringLiteral("null"))
+           << '\n';
+}
+
+void log_tab_state(
+    QTabWidget* tabs,
+    QWidget* organization_name,
+    QWidget* database_path,
+    const QString& phase) {
+    QFile& file = diagnostic_file();
+    QTextStream stream(&file);
+    QWidget* current = tabs->currentWidget();
+
+    stream << "phase=" << phase
+           << " time="
+           << QDateTime::currentDateTime().toString(Qt::ISODateWithMs)
+           << " currentIndex=" << tabs->currentIndex()
+           << " currentObjectName="
+           << (current != nullptr ? current->objectName()
+                                  : QStringLiteral("null"))
+           << '\n';
+
+    for (int index = 0; index < tabs->count(); ++index) {
+        log_widget(
+            stream,
+            QStringLiteral("page[%1]").arg(index),
+            tabs->widget(index));
+    }
+    log_widget(stream, QStringLiteral("organization_name"), organization_name);
+    log_widget(stream, QStringLiteral("database_path"), database_path);
+    stream << '\n';
+    flush_diagnostic();
+}
 
 bool edit_position_dialog(QWidget* parent, Position& position) {
     QDialog dialog(parent);
@@ -242,6 +339,8 @@ void show_reference_error(
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent) {
+    start_diagnostic();
+
     setWindowTitle(QStringLiteral("Малые кадры"));
     resize(1000, 700);
 
@@ -249,6 +348,7 @@ MainWindow::MainWindow(QWidget* parent)
     setCentralWidget(tabs);
 
     auto* organization_tab = new QWidget(tabs);
+    organization_tab->setObjectName(QStringLiteral("organization_tab"));
     organization_tab->setAutoFillBackground(true);
     auto* layout = new QVBoxLayout(organization_tab);
 
@@ -264,11 +364,14 @@ MainWindow::MainWindow(QWidget* parent)
 
     database_path_label_ =
         new QLabel(QStringLiteral("Файл БД не открыт"), organization_tab);
+    database_path_label_->setObjectName(QStringLiteral("database_path_label"));
     layout->addWidget(database_path_label_);
 
     auto* form = new QFormLayout;
     organization_combo_ = new QComboBox(organization_tab);
     organization_name_edit_ = new QLineEdit(organization_tab);
+    organization_name_edit_->setObjectName(
+        QStringLiteral("organization_name_edit"));
     organization_inn_edit_ = new QLineEdit(organization_tab);
     organization_kpp_edit_ = new QLineEdit(organization_tab);
     form->addRow(QStringLiteral("Организация:"), organization_combo_);
@@ -289,6 +392,7 @@ MainWindow::MainWindow(QWidget* parent)
     layout->addStretch();
 
     auto* references_tab = new QWidget(tabs);
+    references_tab->setObjectName(QStringLiteral("references_tab"));
     references_tab->setAutoFillBackground(true);
     auto* references_layout = new QVBoxLayout(references_tab);
 
@@ -348,14 +452,17 @@ MainWindow::MainWindow(QWidget* parent)
     references_layout->addWidget(schedules_group);
 
     auto* employees_tab = new QWidget(tabs);
+    employees_tab->setObjectName(QStringLiteral("employees_tab"));
     employees_tab->setAutoFillBackground(true);
     new QVBoxLayout(employees_tab);
 
     auto* time_tab = new QWidget(tabs);
+    time_tab->setObjectName(QStringLiteral("time_tab"));
     time_tab->setAutoFillBackground(true);
     new QVBoxLayout(time_tab);
 
     auto* calculation_tab = new QWidget(tabs);
+    calculation_tab->setObjectName(QStringLiteral("calculation_tab"));
     calculation_tab->setAutoFillBackground(true);
     new QVBoxLayout(calculation_tab);
 
@@ -398,6 +505,22 @@ MainWindow::MainWindow(QWidget* parent)
     connect(refresh_work_schedules_button_, &QPushButton::clicked,
             this, [this]() { refresh_work_schedules(); });
 
+    connect(tabs, &QTabWidget::currentChanged, this,
+            [this, tabs](int) {
+                log_tab_state(
+                    tabs,
+                    organization_name_edit_,
+                    database_path_label_,
+                    QStringLiteral("currentChanged"));
+                QTimer::singleShot(0, this, [this, tabs]() {
+                    log_tab_state(
+                        tabs,
+                        organization_name_edit_,
+                        database_path_label_,
+                        QStringLiteral("singleShot(0)"));
+                });
+            });
+
     connect(tabs, &QTabWidget::currentChanged, this, [this, tabs](int index) {
         if (index == 1 && !selected_org_id_.has_value()) {
             QMessageBox::information(
@@ -408,6 +531,14 @@ MainWindow::MainWindow(QWidget* parent)
                     "рабочую организацию на вкладке «Организация»."));
             tabs->setCurrentIndex(0);
         }
+    });
+
+    QTimer::singleShot(0, this, [this, tabs]() {
+        log_tab_state(
+            tabs,
+            organization_name_edit_,
+            database_path_label_,
+            QStringLiteral("startup"));
     });
 }
 
