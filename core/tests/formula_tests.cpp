@@ -36,16 +36,16 @@ TEST(formula_arithmetic_and_precedence) {
 }
 
 TEST(formula_decimal_exactness) {
-    REQUIRE_EQUAL(evaluate_formula("0.1 + 0.2"), Rational{3, 10});
+    REQUIRE_EQUAL(evaluate_formula("0.1 + 0.2"), (Rational{3, 10}));
     REQUIRE_EQUAL(
         evaluate_formula(
             "base_amount * 15 / 17",
             {{"base_amount", Rational{5000000}}}),
-        Rational{75000000, 17});
+        (Rational{75000000, 17}));
 }
 
 TEST(formula_operators_and_functions) {
-    REQUIRE_EQUAL(evaluate_formula("6 / 4"), Rational{3, 2});
+    REQUIRE_EQUAL(evaluate_formula("6 / 4"), (Rational{3, 2}));
     REQUIRE_EQUAL(evaluate_formula("7 % 3"), Rational{1});
     REQUIRE_EQUAL(evaluate_formula("-7 % 3"), Rational{-1});
     REQUIRE_EQUAL(evaluate_formula("2 > 1"), Rational{1});
