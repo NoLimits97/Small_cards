@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 add_library(mk_core STATIC
     core/src/types.cpp
+    core/src/formula.cpp
 )
 
 target_include_directories(mk_core
@@ -24,6 +25,7 @@ endif()
 add_executable(core_tests
     core/tests/main.cpp
     core/tests/types_tests.cpp
+    core/tests/formula_tests.cpp
 )
 
 target_include_directories(core_tests PRIVATE
