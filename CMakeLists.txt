@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Sql)
+find_package(Qt6 REQUIRED COMPONENTS Core Sql Widgets)
 
 add_library(mk_core STATIC
     core/src/types.cpp
@@ -91,6 +91,14 @@ if(MSVC)
 else()
     target_compile_options(storage_tests PRIVATE -Wall -Wextra -Werror)
 endif()
+
+add_executable(mk_app
+    gui/src/main.cpp
+    gui/src/main_window.cpp
+)
+
+target_include_directories(mk_app PRIVATE gui/include)
+target_link_libraries(mk_app PRIVATE mk_storage mk_core Qt6::Widgets)
 
 enable_testing()
 add_test(NAME core_tests COMMAND core_tests)

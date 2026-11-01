@@ -20,6 +20,10 @@ echo === Build storage_tests Debug ===
 cmake --build build --config Debug --target storage_tests
 if errorlevel 1 exit /b 1
 
+echo === Build mk_app Debug ===
+cmake --build build --config Debug --target mk_app
+if errorlevel 1 exit /b 1
+
 echo === Tests ===
 ctest --test-dir build -C Debug --output-on-failure --no-tests=error
 if errorlevel 1 exit /b 1
