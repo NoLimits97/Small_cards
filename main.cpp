@@ -2,8 +2,6 @@
 #include "main_window.hpp"
 
 #include <QApplication>
-#include <QCoreApplication>
-#include <QStyle>
 
 #include <string_view>
 
@@ -25,11 +23,6 @@ int main(int argc, char* argv[]) {
     mk::gui::apply_app_theme();
 
     mk::gui::MainWindow window;
-    window.setWindowTitle(
-        window.windowTitle() +
-        QStringLiteral(" | style=%1 | Qt=%2")
-            .arg(QApplication::style()->objectName(), qVersion()));
-    window.setToolTip(QCoreApplication::applicationFilePath());
     window.show();
     return application.exec();
 }
