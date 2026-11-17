@@ -29,6 +29,7 @@ endif()
 add_library(mk_storage STATIC
     storage/src/database.cpp
     storage/src/repositories.cpp
+    storage/src/payroll_service.cpp
     storage/src/org_details.cpp
     storage/storage_resources.qrc
 )
@@ -82,6 +83,52 @@ else()
     target_compile_options(mk_gui_format PRIVATE -Wall -Wextra -Werror)
 endif()
 
+add_library(mk_gui_employee_model STATIC
+    gui/src/employee_table_model.cpp
+    gui/include/employee_table_model.hpp
+)
+
+target_include_directories(mk_gui_employee_model PUBLIC gui/include)
+target_link_libraries(mk_gui_employee_model PUBLIC Qt6::Core)
+
+if(MSVC)
+    target_compile_options(mk_gui_employee_model PRIVATE /W4 /WX)
+else()
+    target_compile_options(mk_gui_employee_model PRIVATE -Wall -Wextra -Werror)
+endif()
+
+add_library(mk_gui_timesheet_model STATIC
+    gui/src/timesheet_table_model.cpp
+    gui/include/timesheet_table_model.hpp
+)
+
+target_include_directories(mk_gui_timesheet_model PUBLIC gui/include)
+target_link_libraries(mk_gui_timesheet_model PUBLIC mk_core Qt6::Core Qt6::Gui)
+
+if(MSVC)
+    target_compile_options(mk_gui_timesheet_model PRIVATE /W4 /WX)
+else()
+    target_compile_options(mk_gui_timesheet_model PRIVATE -Wall -Wextra -Werror)
+endif()
+
+add_library(mk_gui_payroll_model STATIC
+    gui/src/payroll_table_model.cpp
+    gui/include/payroll_table_model.hpp
+)
+
+target_include_directories(mk_gui_payroll_model PUBLIC gui/include)
+target_link_libraries(mk_gui_payroll_model PUBLIC
+    mk_gui_money_formatter
+    mk_gui_format
+    Qt6::Core
+)
+
+if(MSVC)
+    target_compile_options(mk_gui_payroll_model PRIVATE /W4 /WX)
+else()
+    target_compile_options(mk_gui_payroll_model PRIVATE -Wall -Wextra -Werror)
+endif()
+
 add_executable(core_tests
     core/tests/main.cpp
     core/tests/types_tests.cpp
@@ -109,6 +156,8 @@ add_executable(storage_tests
     storage/tests/org_details_tests.cpp
     storage/tests/employee_list_tests.cpp
     storage/tests/employee_operations_tests.cpp
+    storage/tests/timesheet_tests.cpp
+    storage/tests/payroll_service_tests.cpp
 )
 
 target_include_directories(storage_tests PRIVATE
@@ -128,10 +177,19 @@ add_executable(gui_tests
     core/tests/main.cpp
     gui/tests/money_formatter_tests.cpp
     gui/tests/gui_format_tests.cpp
+    gui/tests/employee_table_model_tests.cpp
+    gui/tests/timesheet_table_model_tests.cpp
+    gui/tests/payroll_table_model_tests.cpp
 )
 
 target_include_directories(gui_tests PRIVATE core/tests)
-target_link_libraries(gui_tests PRIVATE mk_gui_money_formatter mk_gui_format)
+target_link_libraries(gui_tests PRIVATE
+    mk_gui_money_formatter
+    mk_gui_format
+    mk_gui_employee_model
+    mk_gui_timesheet_model
+    mk_gui_payroll_model
+)
 
 if(MSVC)
     target_compile_options(gui_tests PRIVATE /W4 /WX)
@@ -143,12 +201,27 @@ add_executable(mk_app
     gui/src/main.cpp
     gui/src/app_theme.cpp
     gui/src/main_window.cpp
+    gui/src/navigation_sidebar.cpp
+    gui/src/section_page.cpp
+    gui/src/workspace_tabs.cpp
     gui/include/app_theme.hpp
     gui/include/main_window.hpp
+    gui/include/navigation_sidebar.hpp
+    gui/include/section_page.hpp
+    gui/include/workspace_tabs.hpp
 )
 
 target_include_directories(mk_app PRIVATE gui/include)
-target_link_libraries(mk_app PRIVATE mk_storage mk_core mk_gui_money_formatter mk_gui_format Qt6::Widgets)
+target_link_libraries(mk_app PRIVATE
+    mk_storage
+    mk_core
+    mk_gui_money_formatter
+    mk_gui_format
+    mk_gui_employee_model
+    mk_gui_timesheet_model
+    mk_gui_payroll_model
+    Qt6::Widgets
+)
 
 enable_testing()
 add_test(NAME core_tests COMMAND core_tests)

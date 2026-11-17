@@ -161,6 +161,7 @@ struct TimeFact {
     Date date = Date(1, 1, 1);
     int32_t worked_minutes = 0;
     std::optional<int64_t> absence_kind_id;
+    int64_t id = 0;
 };
 
 struct OutputFact {

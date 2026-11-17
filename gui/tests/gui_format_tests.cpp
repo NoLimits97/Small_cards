@@ -56,6 +56,33 @@ TEST(gui_format_formats_event_kinds) {
         QStringLiteral("Увольнение"));
 }
 
+TEST(gui_format_formats_minutes) {
+    REQUIRE_EQUAL(
+        mk::gui::format_minutes(0),
+        QStringLiteral("0:00"));
+    REQUIRE_EQUAL(
+        mk::gui::format_minutes(10560),
+        QStringLiteral("176:00"));
+    REQUIRE_EQUAL(
+        mk::gui::format_minutes(485),
+        QStringLiteral("8:05"));
+    REQUIRE_EQUAL(
+        mk::gui::format_minutes(-15),
+        QStringLiteral("0:00"));
+}
+
+TEST(gui_format_formats_calc_statuses) {
+    REQUIRE_EQUAL(
+        mk::gui::format_calc_status(mk::CalcStatus::Ok),
+        QStringLiteral("Рассчитано"));
+    REQUIRE_EQUAL(
+        mk::gui::format_calc_status(mk::CalcStatus::Incomplete),
+        QStringLiteral("Не рассчитывается"));
+    REQUIRE_EQUAL(
+        mk::gui::format_calc_status(mk::CalcStatus::NegativeNet),
+        QStringLiteral("Удержания превышают начисление"));
+}
+
 TEST(gui_format_shows_employee_status) {
     REQUIRE_EQUAL(
         mk::gui::employee_status_text(employee(false)),

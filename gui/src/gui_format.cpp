@@ -9,6 +9,19 @@ QString format_date(Date value) {
         .arg(value.year(), 4, 10, QLatin1Char('0'));
 }
 
+QString format_minutes(int64_t minutes) {
+    if (minutes < 0) {
+        minutes = 0;
+    }
+    return QStringLiteral("%1:%2")
+        .arg(minutes / 60)
+        .arg(
+            minutes % 60,
+            2,
+            10,
+            QLatin1Char('0'));
+}
+
 QString format_rate_unit(RateUnit value) {
     switch (value) {
         case RateUnit::Month:
@@ -31,6 +44,18 @@ QString format_event_kind(EventKind value) {
             return QStringLiteral("Изменение ставки");
         case EventKind::Termination:
             return QStringLiteral("Увольнение");
+    }
+    return QStringLiteral("?");
+}
+
+QString format_calc_status(CalcStatus value) {
+    switch (value) {
+        case CalcStatus::Ok:
+            return QStringLiteral("Рассчитано");
+        case CalcStatus::Incomplete:
+            return QStringLiteral("Не рассчитывается");
+        case CalcStatus::NegativeNet:
+            return QStringLiteral("Удержания превышают начисление");
     }
     return QStringLiteral("?");
 }

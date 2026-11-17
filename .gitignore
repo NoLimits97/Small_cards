@@ -1,1 +1,34 @@
 .aider*
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.VC.db
+*.VC.VC.opendb
+
+# Сборка CMake / MSVC
+build/
+x64/
+CMakeCache.txt
+CMakeFiles/
+*.obj
+*.ilk
+*.pdb
+*.exe
+*.lib
+*.tlog
+*.log
+*.idb
+*.lastbuildstate
+
+# Qt-автогенерация
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+.qmake.stash
+*_autogen/
+
+# Локальные данные
+*.sqlite
+*.sqlite3

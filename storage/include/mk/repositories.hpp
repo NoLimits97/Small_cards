@@ -105,6 +105,14 @@ CalcInput build_calc_input(
     Database&, int64_t org_id, int32_t year, int32_t month);
 
 void persist_calculation(Database&, const CalcOutput&);
+
+/*
+ * Сохраняет расчёт за период, заменяя ранее сохранённый результат за
+ * тот же период date_from..date_to. Расчёты, на которые ссылаются
+ * платёжные документы, сохраняются.
+ */
+void save_calculation(Database&, const CalcOutput&);
+
 std::vector<CalculationLine> read_calculation_lines(
     Database&, int64_t calculation_id);
 

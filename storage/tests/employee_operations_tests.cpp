@@ -559,3 +559,33 @@ TEST(employee_operations_termination_reasons_listed) {
         reasons[0].name,
         std::string("Собственное желание"));
 }
+
+TEST(employee_operations_reject_transfer_to_other_organization_department) {
+    QTemporaryDir directory;
+    REQUIRE(directory.isValid());
+    mk::Database database =
+        make_database(directory, QStringLiteral("department_org.sqlite"));
+    create_references(database);
+    exec_sql(
+        database,
+        QStringLiteral("INSERT INTO Org(id,name) VALUES(2,'Вторая')"));
+    exec_sql(
+        database,
+        QStringLiteral(
+            "INSERT INTO Department(id,org_id,name) "
+            "VALUES(30,2,'Чужой отдел')"));
+
+    const int64_t employee_id =
+        hire(database, make_employee(1, 1, "001", "Сотрудник"));
+
+    REQUIRE_THROWS(mk::transfer_employee(
+        database, 1, employee_id,
+        mk::Date(2026, 2, 1), 30, 20, 20, 20, std::nullopt));
+
+    const auto saved = mk::read_employee(database, employee_id);
+    REQUIRE(saved.has_value());
+    REQUIRE_EQUAL(saved->department_id, int64_t{1});
+    REQUIRE_EQUAL(
+        count_rows(database, QStringLiteral("EmploymentEvent")),
+        int64_t{1});
+}

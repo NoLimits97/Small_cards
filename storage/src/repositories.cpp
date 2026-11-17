@@ -194,6 +194,8 @@ EmploymentEvent event_from(QSqlQuery& query) {
 
 TimeFact fact_from(QSqlQuery& query) {
     TimeFact result;
+    result.id =
+        query.value(0).toLongLong();
     result.employee_id =
         query.value(1).toLongLong();
     result.date =
@@ -749,6 +751,23 @@ void require_operation_date(
     }
 }
 
+void require_department_in_org(
+    Database& database,
+    int64_t department_id,
+    int64_t org_id) {
+    QSqlQuery query(database.sql());
+    query.prepare(
+        "SELECT 1 FROM Department "
+        "WHERE id=? AND org_id=?");
+    query.addBindValue(department_id);
+    query.addBindValue(org_id);
+    check(query);
+    if (!query.next()) {
+        throw std::invalid_argument(
+            "department does not belong to the employee organization");
+    }
+}
+
 EmploymentEvent snapshot_event(
     const Employee& employee,
     const Date& date,
@@ -848,6 +867,7 @@ int64_t transfer_employee(
         date,
         EventKind::Transfer,
         [&](Employee& employee, EmploymentEvent& event) {
+            require_department_in_org(database, department_id, org_id);
             employee.department_id = department_id;
             employee.position_id = position_id;
             employee.employment_kind_id = employment_kind_id;
@@ -1206,6 +1226,100 @@ CalcInput build_calc_input(
     return result;
 }
 
+namespace {
+
+void write_calculations(
+    Database& database,
+    int64_t period_id,
+    const CalcOutput& output) {
+    for (const Calculation& value :
+         output.calculations) {
+        QSqlQuery calculation(database.sql());
+        calculation.prepare(
+            "INSERT INTO Calculation("
+            "employee_id,payroll_period_id,status,"
+            "incomplete_reasons,total_accrual_cents,"
+            "total_pre_tax_deduction_cents,"
+            "income_tax_cents,"
+            "total_employer_contribution_cents,"
+            "total_post_tax_deduction_cents,"
+            "net_amount_cents,engine_version,"
+            "input_snapshot)"
+            " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
+
+        QJsonArray reasons;
+        for (const std::string& reason :
+             value.incomplete_reasons) {
+            reasons.append(
+                QString::fromStdString(reason));
+        }
+
+        calculation.addBindValue(value.employee_id);
+        calculation.addBindValue(period_id);
+        calculation.addBindValue(
+            static_cast<int>(value.status));
+        calculation.addBindValue(
+            QString::fromUtf8(
+                QJsonDocument(reasons).toJson(
+                    QJsonDocument::Compact)));
+        calculation.addBindValue(
+            value.total_accrual.cents);
+        calculation.addBindValue(
+            value.total_pre_tax_deduction.cents);
+        calculation.addBindValue(
+            value.income_tax.cents);
+        calculation.addBindValue(
+            value.total_employer_contribution.cents);
+        calculation.addBindValue(
+            value.total_post_tax_deduction.cents);
+        calculation.addBindValue(
+            value.net_amount.cents);
+        calculation.addBindValue(
+            QString::fromStdString(
+                value.engine_version));
+        calculation.addBindValue(
+            value.input_snapshot.has_value()
+                ? QVariant(QString::fromStdString(
+                    *value.input_snapshot))
+                : QVariant());
+        check(calculation);
+
+        const int64_t calculation_id =
+            id(calculation);
+
+        for (const CalculationLine& line :
+             value.lines) {
+            QSqlQuery item(database.sql());
+            item.prepare(
+                "INSERT INTO CalculationLine("
+                "calculation_id,calc_item_id,"
+                "calc_item_code,role,stage,priority,"
+                "amount_cents,formula_snapshot,"
+                "rounding_policy)"
+                " VALUES(?,?,?,?,?,?,?,?,?)");
+            item.addBindValue(calculation_id);
+            item.addBindValue(line.calc_item_id);
+            item.addBindValue(
+                QString::fromStdString(
+                    line.calc_item_code));
+            item.addBindValue(
+                static_cast<int>(line.role));
+            item.addBindValue(line.stage);
+            item.addBindValue(line.priority);
+            item.addBindValue(line.amount.cents);
+            item.addBindValue(
+                QString::fromStdString(
+                    line.formula_snapshot));
+            item.addBindValue(
+                static_cast<int>(
+                    line.rounding_policy));
+            check(item);
+        }
+    }
+}
+
+}
+
 void persist_calculation(
     Database& database,
     const CalcOutput& output) {
@@ -1228,90 +1342,67 @@ void persist_calculation(
         check(period);
         const int64_t period_id = id(period);
 
-        for (const Calculation& value :
-             output.calculations) {
-            QSqlQuery calculation(database.sql());
-            calculation.prepare(
-                "INSERT INTO Calculation("
-                "employee_id,payroll_period_id,status,"
-                "incomplete_reasons,total_accrual_cents,"
-                "total_pre_tax_deduction_cents,"
-                "income_tax_cents,"
-                "total_employer_contribution_cents,"
-                "total_post_tax_deduction_cents,"
-                "net_amount_cents,engine_version,"
-                "input_snapshot)"
-                " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)");
+        write_calculations(database, period_id, output);
 
-            QJsonArray reasons;
-            for (const std::string& reason :
-                 value.incomplete_reasons) {
-                reasons.append(
-                    QString::fromStdString(reason));
-            }
+        database.commit();
+    } catch (...) {
+        database.rollback();
+        throw;
+    }
+}
 
-            calculation.addBindValue(value.employee_id);
-            calculation.addBindValue(period_id);
-            calculation.addBindValue(
-                static_cast<int>(value.status));
-            calculation.addBindValue(
-                QString::fromUtf8(
-                    QJsonDocument(reasons).toJson(
-                        QJsonDocument::Compact)));
-            calculation.addBindValue(
-                value.total_accrual.cents);
-            calculation.addBindValue(
-                value.total_pre_tax_deduction.cents);
-            calculation.addBindValue(
-                value.income_tax.cents);
-            calculation.addBindValue(
-                value.total_employer_contribution.cents);
-            calculation.addBindValue(
-                value.total_post_tax_deduction.cents);
-            calculation.addBindValue(
-                value.net_amount.cents);
-            calculation.addBindValue(
-                QString::fromStdString(
-                    value.engine_version));
-            calculation.addBindValue(
-                value.input_snapshot.has_value()
-                    ? QVariant(QString::fromStdString(
-                        *value.input_snapshot))
-                    : QVariant());
-            check(calculation);
+void save_calculation(
+    Database& database,
+    const CalcOutput& output) {
+    database.transaction();
 
-            const int64_t calculation_id =
-                id(calculation);
+    try {
+        QSqlQuery existing(database.sql());
+        existing.prepare(
+            "SELECT id FROM PayrollPeriod "
+            "WHERE date_from=? AND date_to=? "
+            "ORDER BY id DESC LIMIT 1");
+        existing.addBindValue(
+            output.input_snapshot.period
+                .date_from.ordinal());
+        existing.addBindValue(
+            output.input_snapshot.period
+                .date_to.ordinal());
+        check(existing);
 
-            for (const CalculationLine& line :
-                 value.lines) {
-                QSqlQuery item(database.sql());
-                item.prepare(
-                    "INSERT INTO CalculationLine("
-                    "calculation_id,calc_item_id,"
-                    "calc_item_code,role,stage,priority,"
-                    "amount_cents,formula_snapshot,"
-                    "rounding_policy)"
-                    " VALUES(?,?,?,?,?,?,?,?,?)");
-                item.addBindValue(calculation_id);
-                item.addBindValue(line.calc_item_id);
-                item.addBindValue(
-                    QString::fromStdString(
-                        line.calc_item_code));
-                item.addBindValue(
-                    static_cast<int>(line.role));
-                item.addBindValue(line.stage);
-                item.addBindValue(line.priority);
-                item.addBindValue(line.amount.cents);
-                item.addBindValue(
-                    QString::fromStdString(
-                        line.formula_snapshot));
-                item.addBindValue(
-                    static_cast<int>(
-                        line.rounding_policy));
-                check(item);
-            }
+        int64_t period_id = 0;
+        if (existing.next()) {
+            period_id = existing.value(0).toLongLong();
+
+            // Сохраняем расчёты, на которые уже ссылаются платёжные
+            // документы; остальные строки периода заменяются.
+            QSqlQuery obsolete(database.sql());
+            obsolete.prepare(
+                "DELETE FROM Calculation "
+                "WHERE payroll_period_id=? "
+                "AND id NOT IN ("
+                "SELECT calculation_id FROM PaymentLine)");
+            obsolete.addBindValue(period_id);
+            check(obsolete);
+        } else {
+            QSqlQuery period(database.sql());
+            period.prepare(
+                "INSERT INTO PayrollPeriod("
+                "date_from,date_to,status) VALUES(?,?,?)");
+            period.addBindValue(
+                output.input_snapshot.period
+                    .date_from.ordinal());
+            period.addBindValue(
+                output.input_snapshot.period
+                    .date_to.ordinal());
+            period.addBindValue(
+                static_cast<int>(
+                    output.input_snapshot.period.status));
+            check(period);
+            period_id = id(period);
         }
+
+        write_calculations(database, period_id, output);
 
         database.commit();
     } catch (...) {

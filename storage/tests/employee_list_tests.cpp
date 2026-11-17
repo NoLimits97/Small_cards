@@ -190,6 +190,39 @@ TEST(storage_employment_kinds_read_existing_records) {
         before);
 }
 
+TEST(storage_create_employee_without_hire_event_saves_employee) {
+    QTemporaryDir directory;
+    REQUIRE(directory.isValid());
+    mk::Database database;
+    database.create_new(directory.filePath("employee_only.sqlite"));
+
+    const mk::Employee employee =
+        make_employee(1, 1, "0007", "Петров Пётр");
+    const int64_t employee_id =
+        mk::create_employee(database, employee);
+
+    const auto saved = mk::read_employee(database, employee_id);
+    REQUIRE(saved.has_value());
+    REQUIRE_EQUAL(saved->id, employee_id);
+    REQUIRE_EQUAL(saved->personnel_number, std::string("0007"));
+    REQUIRE_EQUAL(saved->full_name, std::string("Петров Пётр"));
+    REQUIRE_EQUAL(saved->org_id, int64_t{1});
+    REQUIRE_EQUAL(saved->department_id, int64_t{1});
+    REQUIRE_EQUAL(saved->position_id, int64_t{1});
+    REQUIRE_EQUAL(saved->employment_kind_id, int64_t{1});
+    REQUIRE_EQUAL(saved->work_schedule_id, int64_t{1});
+    REQUIRE_EQUAL(saved->hire_date, mk::Date(2026, 1, 1));
+
+    const auto employees = mk::list_employees(database, 1);
+    REQUIRE_EQUAL(employees.size(), std::size_t{1});
+    REQUIRE_EQUAL(employees.front().id, employee_id);
+    REQUIRE_EQUAL(employees.front().full_name, std::string("Петров Пётр"));
+
+    REQUIRE_EQUAL(
+        count_rows(database, QStringLiteral("EmploymentEvent")),
+        int64_t{0});
+}
+
 TEST(storage_create_employee_with_hire_event_saves_full_snapshot) {
     QTemporaryDir directory;
     REQUIRE(directory.isValid());
