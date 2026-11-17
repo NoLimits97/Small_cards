@@ -1,0 +1,32 @@
+# Small Staff (Малые кадры)
+
+Настольное приложение для кадрового учёта и расчёта зарплаты небольшой организации.
+
+**Стек:** C++20, Qt 6 (Widgets, Sql), SQLite, CMake.
+
+## Структура
+
+| Папка | Назначение |
+|---|---|
+| `core/` | доменная модель, календарь, формулы, граф зависимостей, расчёт |
+| `storage/` | доступ к SQLite, репозитории, кадровые операции |
+| `gui/` | интерфейс на Qt 6 Widgets |
+| `db/` | SQL-схема и начальные данные |
+
+## Сборка
+
+Требуется Visual Studio 2022, CMake 3.20+ и Qt 6.11 (msvc2022_64).
+
+```bash
+cmake -S . -B build -DCMAKE_PREFIX_PATH=C:/Qt/6.11.0/msvc2022_64
+cmake --build build --config Release --target mk_app
+```
+
+Готовый `mk_app.exe` появится в `build/Release/`. На чистой машине рядом с ним нужны Qt DLL — их раскладывает `windeployqt`.
+
+## Тесты
+
+```bash
+run_tests.bat
+```
+
