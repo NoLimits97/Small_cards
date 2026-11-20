@@ -4,7 +4,7 @@ cd /d "%~dp0" || exit /b 1
 
 where cmake >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: CMake not found. Start aider from Developer PowerShell.
+    echo ERROR: CMake not found. Run from Developer PowerShell.
     exit /b 1
 )
 
