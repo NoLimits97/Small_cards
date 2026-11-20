@@ -1,6 +1,3 @@
-.aider*
-.claude/
-
 # Visual Studio
 .vs/
 *.suo
